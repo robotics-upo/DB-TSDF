@@ -103,7 +103,7 @@ RUN git clone https://github.com/AcademySoftwareFoundation/openvdb.git && \
       -DOPENVDB_BUILD_TESTING=OFF && \
     make -j$(nproc) && make install && \
     # mover las .so a multi-arch para que tu CMakeLists las encuentre:
-    mv /usr/lib/libopenvdb* /usr/lib/x86_64-linux-gnu/ && \
+    # mv /usr/lib/libopenvdb* /usr/lib/x86_64-linux-gnu/ && \
     ldconfig && cd / && rm -rf /tmp/openvdb
 
 # Create non-root user
