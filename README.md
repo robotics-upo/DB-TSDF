@@ -56,7 +56,7 @@ To install and build the project, simply clone the repository as follows:
    ```
 
 ### Install using Docker
-Follow these steps to build and run D-LIO inside a Docker container:
+Follow these steps to build and run DB-TSDF inside a Docker container:
 1. Clone the repository:
     ```bash
     git clone https://github.com/robotics-upo/DB-TSDF.git
