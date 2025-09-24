@@ -105,7 +105,6 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'rviz_config_file',
-            # default_value=default_rviz,
             default_value='/home/ros/ros2_ws/src/phd_dev/launch/default.rviz',
             description='Archivo RViz a cargar.'
         ),
@@ -134,7 +133,6 @@ def generate_launch_description():
             parameters=[
                 {'use_sim_time':      True},
 
-                # Dataset: college_map
                 {'in_cloud':       '/velodyne_points'},
                 {'in_tf':         '/gt/transform'},
                 {'use_tf':       True},

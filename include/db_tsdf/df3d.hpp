@@ -6,6 +6,7 @@
 #include <cstring>
 #include <ANN/ANN.h>
 #include <pcl/point_cloud.h>
+#include <pcl/io/ply_io.h>      
 
 
 struct TrilinearParams

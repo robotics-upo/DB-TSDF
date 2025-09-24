@@ -7,7 +7,7 @@
 #include <fstream>        
 #include <pcl/io/pcd_io.h>
 #include <string>
-#include <dlo3d/tdf3d_32.hpp>
+#include <db_tsdf/tsdf3d_32.hpp>
 
 #include <vtkSmartPointer.h>
 #include <vtkImageData.h>

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(dlo3d)
+project(db_tsdf)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,9 +41,9 @@ find_package(VTK REQUIRED COMPONENTS
 )
 
 
-add_executable(dlo3d_mapper  src/mapper_node_32.cpp  src/vtk_mesh_extractor.cpp)
+add_executable(bd_tsdf_mapper  src/mapper_node_32.cpp  src/vtk_mesh_extractor.cpp)
 
-ament_target_dependencies(dlo3d_mapper
+ament_target_dependencies(bd_tsdf_mapper
   rclcpp
   tf2            tf2_ros
   tf2_geometry_msgs
@@ -53,7 +53,7 @@ ament_target_dependencies(dlo3d_mapper
   Boost
 )
 
-target_link_libraries(dlo3d_mapper
+target_link_libraries(bd_tsdf_mapper
   ${PCL_LIBRARIES}
   ${Boost_LIBRARIES}
   OpenMP::OpenMP_CXX
@@ -65,7 +65,7 @@ target_link_libraries(dlo3d_mapper
   VTK::ImagingGeneral
 )
 
-target_include_directories(dlo3d_mapper PRIVATE
+target_include_directories(bd_tsdf_mapper PRIVATE
   include
   include/mesh
   ${Boost_INCLUDE_DIRS}
@@ -79,7 +79,7 @@ install(
 )
 
 install(TARGETS
-  dlo3d_mapper
+  bd_tsdf_mapper
   DESTINATION lib/${PROJECT_NAME}
 )
 

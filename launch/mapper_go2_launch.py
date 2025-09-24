@@ -62,7 +62,6 @@ def generate_launch_description():
             parameters=[
                 {'use_sim_time':      True},
 
-                # Dataset: cow_and_lady
                 {'in_cloud':          '/global_cloud'},
                 # {'in_tf':            '/kinect/vrpn_client/estimated_transform'},
                 {'use_tf':       False},

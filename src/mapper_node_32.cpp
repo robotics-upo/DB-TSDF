@@ -1,6 +1,11 @@
+// DLO3DNode: ROS 2 node for LiDAR→TDF mapping and lightweight visualization.
+// Pipeline: subscribe PointCloud2 → TF-align → range+downsample filter → TDF update.
+// Publishes: filtered cloud and a sweeping 2D occupancy slice.
+// Services: export grid as CSV/PCD/PLY and extract mesh via VTK.
+
 #include <vector>
-#include <ctime>
-#include <algorithm>
+#include <ctime> // likely unused
+#include <algorithm> // likely unused
 #include <thread>
 #include <chrono>
 #include "rclcpp/rclcpp.hpp"
@@ -11,16 +16,16 @@
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
 
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp" 
-#include "tf2/transform_datatypes.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"  // likely unused
+#include "tf2/transform_datatypes.h" // likely unused
 
-#include "pcl_ros/transforms.hpp"
-#include <pcl/point_types.h>
+#include "pcl_ros/transforms.hpp" // likely unused
+#include <pcl/point_types.h> 
 #include "pcl_conversions/pcl_conversions.h"
 
 #include "nav_msgs/msg/occupancy_grid.hpp"
 
-#include <dlo3d/tdf3d_32.hpp>
+#include <db_tsdf/tsdf3d_32.hpp>
 
 #include <memory>      
 #include "mesh/vtk_mesh_extractor.hpp"
@@ -31,17 +36,20 @@
 #include <deque> 
 #include <cstdlib>
 
-using std::isnan;
+#include <iomanip>
+#include <sstream>
+
+using std::isnan; // likely unused
    
 class DLO3DNode : public rclcpp::Node
 {
 public:
 
-//!Default contructor
+    // Node initialization: parameters, TF buffer, pubs/subs, services, grid setup
     DLO3DNode(const std::string &node_name)
         : Node(node_name)
     {
-        // Read DLO3D parameters
+        // Parameters
         m_inCloudTopic     = this->declare_parameter<std::string>("in_cloud", "/cloud_raw");
         m_useTf            = this->declare_parameter<bool>("use_tf", true);
         m_inTfTopic        = this->declare_parameter<std::string>("in_tf", "/cloud_tf");  
@@ -59,11 +67,11 @@ public:
         m_maxRange          = this->declare_parameter<double>("max_range", 100.0);
         m_PcDownsampling    = this->declare_parameter<int>("pc_downsampling", 1);
         
-        //Init buffers
+        // TF buffer and listener
         m_tfBuffer = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         m_tfListener = std::make_shared<tf2_ros::TransformListener>(*m_tfBuffer);
         
-        // Launch publishers
+        // Publishers
         m_keyframePub = this->create_publisher<sensor_msgs::msg::PointCloud2>("keyframe", 100);
         m_cloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/cloud", 100);
         slice_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("/grid_slice", 100);
@@ -73,6 +81,7 @@ public:
         using namespace std::chrono_literals;
         slice_timer_ = this->create_wall_timer(300ms, std::bind(&DLO3DNode::publishSliceCB, this));
 
+        // Subscriptions
         auto qos_keepall_reliable = rclcpp::QoS(rclcpp::KeepAll()).reliable().durability_volatile();
 
         m_pcSub = this->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -83,38 +92,35 @@ public:
             m_inTfTopic, qos_keepall_reliable,
             std::bind(&DLO3DNode::tfCallback, this, std::placeholders::_1));
 
-        // Create Services
-        save_service_csv_ = this->create_service<std_srvs::srv::Trigger>(
-            "/save_grid_csv",
-            std::bind(&DLO3DNode::saveGridCSV, this, std::placeholders::_1, std::placeholders::_2)
-        );
+        // Services: async exports (non-blocking)
+        save_service_csv_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_csv",
+            std::bind(&DLO3DNode::saveGridCSV, this, std::placeholders::_1, std::placeholders::_2));
 
-        save_service_pcd_ = this->create_service<std_srvs::srv::Trigger>(
-            "/save_grid_pcd",
-            std::bind(&DLO3DNode::saveGridPCD, this, std::placeholders::_1, std::placeholders::_2)
-        );
+        save_service_pcd_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_pcd",
+            std::bind(&DLO3DNode::saveGridPCD, this, std::placeholders::_1, std::placeholders::_2));
 
-        save_service_mesh_ = this->create_service<std_srvs::srv::Trigger>(
-            "/save_grid_mesh",
-            std::bind(&DLO3DNode::saveGridMesh, this,
-                    std::placeholders::_1, std::placeholders::_2)
-        );
+        save_service_ply_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_ply",
+            std::bind(&DLO3DNode::saveGridPLY, this, std::placeholders::_1, std::placeholders::_2));
 
-        // TDF grid Setup
+
+        save_service_mesh_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_mesh",
+            std::bind(&DLO3DNode::saveGridMesh, this, std::placeholders::_1, std::placeholders::_2));
+
+        // TDF grid allocation
         m_grid3d.setup(m_tdfGridSizeX_low, m_tdfGridSizeX_high,
                     m_tdfGridSizeY_low, m_tdfGridSizeY_high,
                     m_tdfGridSizeZ_low, m_tdfGridSizeZ_high,
                     m_tdfGridRes);
-
         std::cout << "DLO3D is ready to execute! " << std::endl;
         std::cout << "Grid Created. Size: " 
                 << fabs(m_tdfGridSizeX_low) + fabs(m_tdfGridSizeX_high) << " x " 
                 << fabs(m_tdfGridSizeY_low) + fabs(m_tdfGridSizeY_high) << " x " 
                 << fabs(m_tdfGridSizeZ_low) + fabs(m_tdfGridSizeZ_high) << "." 
                 << std::endl;
+
+        std::system("mkdir -p /home/ros/ros2_ws/map_ply");
     }
 
-    // Default Destructor
     ~DLO3DNode(){
 
         RCLCPP_INFO(this->get_logger(), "Node closed successfully.");   
@@ -122,7 +128,7 @@ public:
 
 private:
 
-    // ROS2 parameters
+    // Parameters
     std::string m_inCloudTopic;
     std::string m_inCloudAuxTopic;
     std::string m_baseFrameId;
@@ -131,27 +137,28 @@ private:
     bool m_useTf{true};
     double m_minRange, m_maxRange;
 
-    // 3D distance grid
+    // TDF grid and geometry
     TDF3D32 m_grid3d;
     double m_tdfGridSizeX_low, m_tdfGridSizeX_high, m_tdfGridSizeY_low, m_tdfGridSizeY_high, m_tdfGridSizeZ_low, m_tdfGridSizeZ_high, m_tdfGridRes;
 
+    // Input downsampling factor (keep every N-th point)
     int m_PcDownsampling;
 
-    // Slice variables
+    // Slice sweep state
     double slice_z0_{1.0};          
     double slice_thickness_{0.10};
     float slice_z_;            
     float slice_step_;           
     int   slice_dir_;            
     
-    // Transformations
+    // TF data and sync
     geometry_msgs::msg::TransformStamped m_staticTfPointCloud, m_staticTfPointCloudAux, m_latestTf; 
     std::deque<geometry_msgs::msg::TransformStamped> m_tfHist;
     rclcpp::Duration m_maxSkew{0, 100'000'000}; 
     std::mutex m_tfMutex;
 
 
-    // ROS2 subscribers and publishers
+    // ROS interfaces
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr m_pcSub;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr m_pcSub_aux;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr m_keyframePub;
@@ -160,31 +167,28 @@ private:
     rclcpp::TimerBase::SharedPtr slice_timer_;
     rclcpp::Subscription<geometry_msgs::msg::TransformStamped>::SharedPtr m_tfSub;
 
-    // ROS2 transform management
+    // TF management
     std::shared_ptr<tf2_ros::Buffer> m_tfBuffer;
     std::shared_ptr<tf2_ros::TransformListener> m_tfListener;
 
     // Services
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_service_csv_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_service_pcd_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_service_ply_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr save_service_mesh_;
 
-    // Function declarations
+    // Callbacks and helpers
     void pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud);
-
     void tfCallback(geometry_msgs::msg::TransformStamped::ConstSharedPtr msg);
-    
     Eigen::Matrix4f getTransformMatrix(const geometry_msgs::msg::TransformStamped& transform_stamped);
-    
     void saveGridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-
     void saveGridPCD(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-
+    void saveGridPLY(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                           std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void saveGridMesh(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                             std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-
     void publishSliceCB();
 
 };
@@ -209,8 +213,7 @@ void DLO3DNode::saveGridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Reques
 }
 
 // ros2 service call /save_grid_pcd std_srvs/srv/Trigger
-
-
+// Export grid as PCD (async)
 void DLO3DNode::saveGridPCD(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                                  std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     RCLCPP_INFO(this->get_logger(), "Received request to save PCD. Starting in a separate thread...");
@@ -225,15 +228,30 @@ void DLO3DNode::saveGridPCD(const std::shared_ptr<std_srvs::srv::Trigger::Reques
     response->message = "Exportación del PCD iniciada en segundo plano.";
 }
 
+// ros2 service call /save_grid_ply std_srvs/srv/Trigger
+// Export grid as PLY (async)
+void DLO3DNode::saveGridPLY(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    RCLCPP_INFO(this->get_logger(), "Received request to save PLY. Starting in a separate thread...");
+
+    std::thread([this]() {
+        RCLCPP_INFO(this->get_logger(), "Generating PLY...");
+        m_grid3d.exportGridToPLY("grid_data.ply",1); 
+        RCLCPP_INFO(this->get_logger(), "PLY saved successfully.");
+    }).detach();
+
+    response->success = true;
+    response->message = "Exportación del PLY iniciada en segundo plano.";
+}
+
+// Point cloud ingestion: TF-align, range filter, downsample, TDF update, publish filtered cloud
 void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud)
     {
         auto start = std::chrono::steady_clock::now();
         static size_t counter = 0;
         counter++;
-
         Eigen::Matrix4f T = Eigen::Matrix4f::Identity();
-        if (m_useTf)
-        {
+        if (m_useTf) {
             std::lock_guard<std::mutex> lock(m_tfMutex);
 
             if (m_tfHist.empty()) {
@@ -243,14 +261,10 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
                 return;
             }
 
-            // Usa SIEMPRE la última TF recibida
-            // const auto& tf_last = m_tfHist.back();
-            // T = getTransformMatrix(tf_last);
-
             rclcpp::Time t_cloud = cloud->header.stamp;
+
             if (t_cloud.nanoseconds() == 0) t_cloud = this->get_clock()->now();
 
-            // Selecciona la TF con |Δt| mínimo
             auto best_it = m_tfHist.begin();
             auto best_dt = rclcpp::Duration::from_nanoseconds(
                 std::llabs((t_cloud - best_it->header.stamp).nanoseconds()));
@@ -261,7 +275,6 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
                 if (dt < best_dt) { best_dt = dt; best_it = it; }
             }
 
-            // Descarta si el desfase supera el umbral permitido
             if (best_dt > m_maxSkew) {
                 RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
                                     "Δt TF–cloud = %.3f ms > límite, nube descartada",
@@ -270,7 +283,6 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
             }
 
             T = getTransformMatrix(*best_it);
-
         }
 
 
@@ -304,8 +316,21 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
 
         m_grid3d.loadCloud(pts);
 
+        if (counter % 10 == 0) { 
+            std::ostringstream fname;
+            fname << "/home/ros/ros2_ws/map_ply/frame_"
+                << std::setw(6) << std::setfill('0') << counter << ".ply";
+            std::thread([this, path=fname.str()]() {
+                try {
+                    m_grid3d.exportGridToPLY(path, 1); 
+                    RCLCPP_INFO(this->get_logger(), "Guardado mapa: %s", path.c_str());
+                } catch (const std::exception &e) {
+                    RCLCPP_ERROR(this->get_logger(), "Error guardando mapa PLY: %s", e.what());
+                }
+            }).detach();
+        }
+
         sensor_msgs::msg::PointCloud2 cloud_corrected;
-        // pcl::toROSMsg(pcl_out, cloud_corrected);
         pcl::toROSMsg(pcl_filtered, cloud_corrected);
         cloud_corrected.header   = cloud->header;
         cloud_corrected.header.frame_id = m_odomFrameId;    
@@ -317,74 +342,6 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
         RCLCPP_INFO(this->get_logger(), "Received frame #%zu · time = %.3f", counter, ms);
     }
 
-
-// //! 3D point-cloud callback
-// void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud)
-// {
-//     auto start = std::chrono::steady_clock::now();
-//     static size_t counter = 0;
-//     counter++;
-
-//     // 1) Centro de la esfera (opcionalmente desde /tf_ts)
-//     float base_x = 0.f, base_y = 0.f, base_z = 0.f;
-//     if (m_useTf) {
-//         std::lock_guard<std::mutex> lock(m_tfMutex);
-//         if (!m_tfHist.empty()) {
-//             rclcpp::Time t_cloud = cloud->header.stamp;
-//             auto best_it = m_tfHist.begin();
-//             auto best_dt = rclcpp::Duration::from_nanoseconds(
-//                 std::llabs((t_cloud - best_it->header.stamp).nanoseconds()));
-//             for (auto it = m_tfHist.begin(); it != m_tfHist.end(); ++it) {
-//                 auto dt = rclcpp::Duration::from_nanoseconds(
-//                     std::llabs((t_cloud - it->header.stamp).nanoseconds()));
-//                 if (dt < best_dt) { best_dt = dt; best_it = it; }
-//             }
-//             // SIEMPRE tomar ese TF para el centro de la esfera
-//             base_x = best_it->transform.translation.x;
-//             base_y = best_it->transform.translation.y;
-//             base_z = best_it->transform.translation.z;
-//         }
-//     }
-
-//     // 2) Nube: NO transformar
-//     pcl::PointCloud<pcl::PointXYZ> pcl_in, pcl_out;
-//     pcl::fromROSMsg(*cloud, pcl_in);
-//     pcl_out = pcl_in;
-
-//     const double min_sq = m_minRange * m_minRange;
-//     const double max_sq = m_maxRange * m_maxRange;
-
-//     pcl::PointCloud<pcl::PointXYZ> pcl_filtered;
-//     pcl_filtered.reserve(pcl_out.size());
-
-//     std::vector<pcl::PointXYZ> pts;
-//     pts.reserve(pcl_out.size());
-
-//     int cnt = 0;
-//     for (const auto &p : pcl_out) {
-//         const double dx = p.x - base_x;
-//         const double dy = p.y - base_y;
-//         const double dz = p.z - base_z;
-//         const double d2 = dx*dx + dy*dy + dz*dz;
-//         if (d2 < min_sq || d2 > max_sq) continue;
-//         if (cnt++ % m_PcDownsampling)   continue;
-//         pts.push_back(p);
-//         pcl_filtered.push_back(p);
-//     }
-
-//     m_grid3d.loadCloud(pts);
-
-//     sensor_msgs::msg::PointCloud2 cloud_corrected;
-//     pcl::toROSMsg(pcl_filtered, cloud_corrected);
-//     cloud_corrected.header = cloud->header;          
-//     cloud_corrected.header.frame_id = "odom";        
-//     m_cloudPub->publish(cloud_corrected);
-
-//     auto end = std::chrono::steady_clock::now();
-//     double ms = std::chrono::duration<double,std::milli>(end - start).count();
-//     RCLCPP_INFO(this->get_logger(), "Received frame #%zu · time = %.3f", counter, ms);
-// }
-
 void DLO3DNode::tfCallback(geometry_msgs::msg::TransformStamped::ConstSharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(m_tfMutex);
@@ -393,7 +350,6 @@ void DLO3DNode::tfCallback(geometry_msgs::msg::TransformStamped::ConstSharedPtr 
         m_tfHist.pop_front(); 
 }
 
-//! Auxiliar Functions
 Eigen::Matrix4f DLO3DNode::getTransformMatrix(const geometry_msgs::msg::TransformStamped& transform_stamped){
         Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
 
@@ -417,10 +373,10 @@ Eigen::Matrix4f DLO3DNode::getTransformMatrix(const geometry_msgs::msg::Transfor
         return transform;
 }
 
-// ros2 service call /save_grid_mesh std_srvs/srv/Trigger "{ }"
-
+// Extract mesh with VTK Marching Cubes (async). Usage:
+//   ros2 service call /save_grid_mesh std_srvs/srv/Trigger "{}"
 void DLO3DNode::saveGridMesh(
-        const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+        const std::shared_ptr<std_srvs::srv::Trigger::Request> ,
         std::shared_ptr<std_srvs::srv::Trigger::Response> response)
     {
     RCLCPP_INFO(this->get_logger(),
@@ -442,26 +398,7 @@ void DLO3DNode::saveGridMesh(
     response->message = "Mesh export started in background.";
 }
 
-
-
-// void DLO3DNode::saveGridMesh(
-//     const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
-//     std::shared_ptr<std_srvs::srv::Trigger::Response> response)
-// {
-//   RCLCPP_INFO(this->get_logger(),"Saving mesh (VTK FlyingEdges, TSDF)...");
-//   const float iso = 0.0f;
-//   std::thread([this, iso]() {
-//     try {
-//       VTKMeshExtractor::extract(m_grid3d, "/home/ros/ros2_ws/mesh.ply", iso);
-//       RCLCPP_INFO(this->get_logger(), "Mesh saved to /home/ros/ros2_ws/mesh.ply");
-//     } catch (const std::exception &e) {
-//       RCLCPP_ERROR(this->get_logger(), "Mesh export failed: %s", e.what());
-//     }
-//   }).detach();
-//   response->success = true;
-//   response->message = "PLY export started.";
-// }
-
+// Publish a moving horizontal slice through the TDF as an OccupancyGrid
 void DLO3DNode::publishSliceCB()
 {
     nav_msgs::msg::OccupancyGrid slice;

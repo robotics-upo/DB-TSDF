@@ -1,9 +1,10 @@
 #ifndef __TDF3D_32_HPP__
 #define __TDF3D_32_HPP__
 
-/* ───────────────────  32-bit directional TSDF grid  ──────────────────── */
+// TDF3D32: 32-bit directional TSDF grid with per-voxel Manhattan-mask distance,
+// sign bit, and hit counter. Supports directional kernels, TSDF updates,
+// distance queries, slice visualization, and CSV/PCD/PLY exports.
 
-/* Standard + ROS2 ------------------------------------------------------- */
 #include <algorithm>          
 #include <cmath>          
 #include <chrono>           
@@ -16,40 +17,40 @@
 
 #include <Eigen/Dense>		
 
-#include <dlo3d/df3d.hpp>    
+#include <db_tsdf/df3d.hpp>    
 
-/* Constants ------------------------------------------------------------- */
+// Binning for directional kernels
 constexpr int BINS_AZ  = 40;		// azimuth bins               
 constexpr int BINS_EL  = 40;		// elevation bins
 constexpr int NUM_BINS = BINS_AZ * BINS_EL;  
 
-constexpr int OCC_MIN_HITS = 5;		// voxel becomes “occupied” after this many hits
-constexpr int SHADOW_RADIUS_MD = 8; 
+constexpr int OCC_MIN_HITS = 50;		// hits threshold to mark occupied
+constexpr int SHADOW_RADIUS_MD = 8; 	// shadow radius (voxel units)
 
-/* Direction-dependent kernel ------------------------------------------- */
+// Direction-dependent kernel (21³ support)
 struct DirectionalKernel
 {
-    uint32_t distance_masks[21*21*21];  
-    uint8_t  signs[21*21*21];		// 0 = occ, 1 = free
+    uint32_t distance_masks[21*21*21];		// Manhattan distance masks
+    uint8_t  signs[21*21*21];		        // 0 = occ, 1 = free
 };
 
-/* 8-byte voxel record --------------------------------------------------- */
+// 8-byte voxel record
 struct VoxelData
 {
-	uint32_t d;		// Manhattan mask (bit-count ⇒ distance)
+	uint32_t d;		// Manhattan mask (bit-count -> distance)
 	uint8_t s;		// bit0: sign (0 occ / 1 free)
 	uint16_t hits;	// hit counter
 };
 static_assert(sizeof(VoxelData) == 8, "VoxelData must be 8-bytes aligned");
 
-/* Grid class ------------------------------------------------------------ */
+// Grid class
 class TDF3D32 : public DF3D
 {
 public:
 	TDF3D32() : m_gridData(nullptr) {}
     ~TDF3D32() { free(m_gridData); }
 
-	/* grid allocation + full reset ---------------------------------------- */
+	// Allocate grid and reset all state
 	void setup(float minX, float maxX, 
 			   float minY, float maxY, 
 			   float minZ, float maxZ, 
@@ -62,7 +63,7 @@ public:
 
 		free(m_gridData);	//reset
 
-    	/* size, strides, malloc ------------------------------------------- */
+    	// Dimensions and strides
 		m_oneDivRes = 1.0/m_resolution;
 		m_gridSizeX = fabs(m_maxX-m_minX)*m_oneDivRes;
 		m_gridSizeY = fabs(m_maxY-m_minY)*m_oneDivRes;
@@ -72,7 +73,7 @@ public:
 		m_gridSize = m_gridSizeX*m_gridSizeY*m_gridSizeZ;
 		m_gridData = (VoxelData *)malloc(m_gridSize*sizeof(VoxelData));
 
-    	/* fast-index helpers ---------------------------------------------- */
+    	// Fast index helpers
 		m_k1 = (uint64_t) m_gridSizeX;
 		m_k2 = (uint64_t)(m_gridSizeX*m_gridSizeY);
 
@@ -81,7 +82,7 @@ public:
 		clear();
 	}
 
-	/* update bounding box only ------------------------------------------- */
+	// Update only the world limits
 	void setupGridLimits(float minX, float maxX, 
 						 float minY, float maxY, 
 						 float minZ, float maxZ){
@@ -90,7 +91,7 @@ public:
 		m_minY = minY;	m_minZ = minZ;
 	}
 
-	/* wipe voxel array ---------------------------------------------------- */
+	// Reset all voxels to free, distance=32, hits=0
 	void clear(void)
 	{
 		for (uint64_t i = 0; i < m_gridSize; ++i)
@@ -101,7 +102,7 @@ public:
 		}
 	}
 
-	/* rigid-body correction (yaw only) ------------------------------------ */
+	// Rigid correction (yaw + translation), then update
 	void loadCloud(std::vector<pcl::PointXYZ> &cloud, 
 				   float tx, float ty, float tz, float yaw)
 	{
@@ -119,23 +120,21 @@ public:
 		loadCloud(out);
 	}
 
-	/* full SE(3) correction ------------------------------------------------ */
+	// Full SE(3) correction, then update
 	void loadCloud(std::vector<pcl::PointXYZ> &cloud, 
 				   float tx, float ty, float tz, 
 				   float roll, float pitch, float yaw)
 	{
 		std::vector<pcl::PointXYZ> out(cloud.size());
 
-    	/* rotation matrix -------------------------------------------------- */
+    	// Rotation matrix R = Rz(yaw) * Ry(pitch) * Rx(roll)
 		const float cr = std::cos(roll),  sr = std::sin(roll);
 		const float cp = std::cos(pitch), sp = std::sin(pitch);
 		const float cy = std::cos(yaw),   sy = std::sin(yaw);
-
 		const float r00 = cy*cp,      r01 = cy*sp*sr - sy*cr,  r02 = cy*sp*cr + sy*sr;
 		const float r10 = sy*cp,      r11 = sy*sp*sr + cy*cr,  r12 = sy*sp*cr - cy*sr;
 		const float r20 = -sp,        r21 = cp*sr,             r22 = cp*cr;
 
-		/* transform -------------------------------------------------------- */
 		for(uint i=0; i<cloud.size(); i++) 
 		{
 			out[i].x = cloud[i].x*r00 + cloud[i].y*r01 + cloud[i].z*r02 + tx;
@@ -147,25 +146,25 @@ public:
 		loadCloud(out);
 	}
 
-	/* dense TSDF update ------------------------------------------------------ */
+	// Dense TSDF update using 21³ directional kernels around each point
 	void loadCloud(std::vector<pcl::PointXYZ> &cloud)
 	{
 		const auto t0 = std::chrono::steady_clock::now();
 		const float step = 10 * m_resolution;			// 20-voxel cube
-		
+
 		#pragma omp parallel for num_threads(20) shared(m_dirKernels, m_gridData) 
 		for(uint32_t i=0; i<cloud.size(); i++)
 		{
-        	/* discard if point neighbourhood is outside the grid -------- */
+        	// Skip if 21³ neighborhood falls outside the grid
 			if(!isIntoGrid(cloud[i].x-step, cloud[i].y-step, cloud[i].z-step) || 
 			   !isIntoGrid(cloud[i].x+step, cloud[i].y+step, cloud[i].z+step))
 				continue;
 			
-			/* pick kernel by ray direction ------------------------------ */
+			// Select kernel by ray direction
 			Eigen::Vector3f dir(cloud[i].x, cloud[i].y, cloud[i].z);
     		const DirectionalKernel& DK = m_dirKernels[dirToBin(dir)];
 
-			/* convolve 21x21x21 neighbourhood ---------------------------- */
+			// Convolve neighborhood
 			int xi, yi, zi, k = 0;
 			uint64_t idx, idy, idz = pointToGrid(cloud[i].x-step, cloud[i].y-step, cloud[i].z-step);
 			for(zi=0; zi<21; zi++, idz+=m_gridStepZ)
@@ -175,13 +174,10 @@ public:
 						uint32_t old_mask = m_gridData[idx].d;                    
 						uint32_t new_mask = old_mask & DK.distance_masks[k];
 						
-						// int old_d = __builtin_popcount(old_mask);
-						// int new_d = __builtin_popcount(new_mask);
 						if (new_mask != old_mask)
 							m_gridData[idx].d = new_mask;
 
-						if (DK.signs[k] == 0)    
-						{
+						if (DK.signs[k] == 0) { // occupied evidence
 							if (m_gridData[idx].hits < std::numeric_limits<uint16_t>::max()) 
 								++m_gridData[idx].hits;
 								if (m_gridData[idx].hits == OCC_MIN_HITS)
@@ -194,10 +190,10 @@ public:
 		recordKernelTime(std::chrono::duration<double,std::milli>(t1 - t0).count());
 	}
 
-	/* distance helpers ---------------------------------------------------- */
+	// Distance at linear index
 	inline float getD(uint64_t i) const { return voxelDist(i); }
 
-	/* cached coefficients (pre-computados) -------------------------------- */
+	// Return cached trilinear parameters if voxel is confident
 	inline TrilinearParams getDistInterpolation(const double &x, const double &y, const double &z)
 	{
 		TrilinearParams p{};
@@ -210,13 +206,13 @@ public:
 		return p;
 	}
 
-	/* full on-the-fly interpolation -------------------------------------- */
+	// Compute trilinear parameters on the fly
 	inline TrilinearParams computeDistInterpolation(const double &x, const double &y, const double &z)
 	{
 		TrilinearParams p{};
 		if (!isIntoGrid(x,y,z)) return p;
 
-		/* 8-neighbour values --------------------------------------------- */
+		// 8-neighbour values
 		uint64_t i = pointToGrid(x,y,z);
 		const float c000 = voxelDist(i);
 		const float c001 = voxelDist(i + m_gridStepZ);
@@ -227,7 +223,7 @@ public:
 		const float c110 = voxelDist(i + 1 + m_gridStepY);
 		const float c111 = voxelDist(i + 1 + m_gridStepY + m_gridStepZ);
 
-		/* coeffs ---------------------------------------------------------- */
+		// Coefficients
 		const float div = -m_oneDivRes * m_oneDivRes * m_oneDivRes;
 		const float x0  = std::floor(x * m_oneDivRes) * m_resolution;
 		const float y0  = std::floor(y * m_oneDivRes) * m_resolution;
@@ -256,7 +252,7 @@ public:
 		return p;
 	}
 
-	/* signed-distance at point ------------------------------------------ */
+	// Signed distance at point (0 if outside or not confident)
 	inline double getDist(const double &x, const double &y, const double &z)
 	{
 		if (!isIntoGrid(x,y,z)) return 0.f;
@@ -264,10 +260,9 @@ public:
 		return (m_gridData[i].hits >= OCC_MIN_HITS) ? voxelDist(i) : 0.f;
 	}
 
-	/* XY slice → ROS OccupancyGrid -------------------------------------- */
+	// XY slice as ROS OccupancyGrid for visualization
 	void buildGridSliceMsg(float z0, nav_msgs::msg::OccupancyGrid &msg)
 	{
-		/* meta-data ------------------------------------------------------ */
 		msg.header.stamp    = rclcpp::Clock(RCL_SYSTEM_TIME).now();
 		msg.header.frame_id = "odom";
 		msg.info.resolution = m_resolution;
@@ -282,7 +277,6 @@ public:
 		if (k < 0 || k >= int(m_gridSizeZ)) { msg.data.clear(); return; }
 		const std::size_t offset = std::size_t(k) * m_gridStepZ;
 
-		/* color table ---------------------------------------------------- */
 		constexpr float  D_MAX = 32.f;
 		constexpr int8_t FREE_MIN =   1,    FREE_MAX =  49,      
 						 BORDER   =  60,     
@@ -292,21 +286,18 @@ public:
 
 		msg.data.assign(m_gridSizeX * m_gridSizeY, FREE_MIN);  
 
-		/* raster --------------------------------------------------------- */
-		for (std::size_t idx = 0; idx < m_gridStepZ; ++idx)
-		{
+		for (std::size_t idx = 0; idx < m_gridStepZ; ++idx) {
 			const std::size_t g = offset + idx;
 			if (m_gridData[g].hits == 0) continue;                    
 
 			float sdist = ((m_gridData[g].s & 0x01) ? -1.f : 1.f) * voxelDist(g);
 			sdist = std::clamp(sdist, -D_MAX, D_MAX);
 
-			if (!(m_gridData[g].hits >= OCC_MIN_HITS))                      
-			{
+			if (!(m_gridData[g].hits >= OCC_MIN_HITS)) {
 				msg.data[idx] =	int8_t(std::round((D_MAX - sdist) * scale_free));  
 			}
-			else                                       
-			{
+
+			else {
 				float d = std::min(std::fabs(sdist), D_MAX);
 				if (d <= 1.f)
 					msg.data[idx] = BORDER;             
@@ -317,13 +308,13 @@ public:
 		}
 	}
 
-	/* dump voxel stats to CSV ------------------------------------------- */
+	// Export voxel stats to CSV within XYZ filters (optional subsampling)
 	void exportGridToCSV(const std::string& filename, 
                      	 float minX_filter, float maxX_filter, 
                      	 float minY_filter, float maxY_filter, 
                      	 float minZ_filter, float maxZ_filter,
-                     	 int subsampling_factor) 
-	{
+                     	 int subsampling_factor){
+							
 		std::ofstream file(filename);
 
 		if (!file.is_open())
@@ -366,7 +357,7 @@ public:
 		std::cout << "CSV exported successfully: " << filename << std::endl;
 	}
 
-	/* dump voxel centers to PCD ----------------------------------------- */
+	// Export voxel centers to PCD (optional filters)
 	void exportGridToPCD(const std::string& filename, 
 						 int subsampling_factor,
 						 bool only_occupied = true,
@@ -407,7 +398,41 @@ public:
 		std::cout << "PCD exported successfully: " << filename << std::endl;
 	}
 
-	/* helpers ------------------------------------------------------------ */
+
+	// Export voxel centers to PLY (optional filters)
+	void exportGridToPLY(const std::string& filename,
+						int subsampling_factor,
+						bool only_occupied = true,
+						bool only_border   = true,
+						uint16_t min_hits  = OCC_MIN_HITS)     
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+		cloud->reserve((m_gridSizeX*m_gridSizeY*m_gridSizeZ)/(subsampling_factor*subsampling_factor*subsampling_factor));
+
+		for (int iz = 0; iz < m_gridSizeZ; iz += subsampling_factor) {
+			float z = m_minZ + iz * m_resolution;
+			for (int iy = 0; iy < m_gridSizeY; iy += subsampling_factor) {
+				float y = m_minY + iy * m_resolution;
+				for (int ix = 0; ix < m_gridSizeX; ix += subsampling_factor) {
+					float x = m_minX + ix * m_resolution;
+					uint64_t index = ix + iy * m_gridStepY + iz * m_gridStepZ;
+
+					if (only_occupied && m_gridData[index].hits < min_hits) continue; 
+					float dist = voxelDist(index);
+					if (only_border && dist != 0.0f) continue;                     
+
+					cloud->push_back(pcl::PointXYZ{x,y,z});
+				}
+			}
+		}
+		if (cloud->empty()) { std::cerr << "Empty Cloud.\n"; return; }
+
+		pcl::io::savePLYFileBinary(filename, *cloud);  
+		std::cout << "PLY exported: " << filename << "  points=" << cloud->size() << std::endl;
+	}
+
+
+	// Queries and accessors
 	inline bool isOccupied(const float &x, const float &y, const float &z)
 	{
 		return isIntoGrid(x,y,z) && (m_gridData[pointToGrid(x,y,z)].hits >= OCC_MIN_HITS);
@@ -430,23 +455,23 @@ public:
 
 
 protected:
-	/* data ------------------------------------------------------------- */
-	std::vector<pcl::PointXYZ>  m_last_corrected_cloud;		/* last cloud */
+	// Data
+	std::vector<pcl::PointXYZ>  m_last_corrected_cloud;		
 
-	VoxelData *m_gridData;								   /* voxel array */
+	VoxelData *m_gridData;								 
 	
-	/* directional kernels ---------------------------------------------- */
+	// Directional kernels
 	std::vector<DirectionalKernel> m_dirKernels;
 	inline int dirToBin(const Eigen::Vector3f &v) const;
 	void initDirectionalKernels();
 
-	/* timing stats (printed every STAT_PERIOD frames) ------------------ */
+	// Timing stats (printed every STAT_PERIOD frames)
 	static constexpr int  STAT_PERIOD = 50;
 	static inline std::atomic<uint64_t> s_frames{0};
 	static inline std::atomic<double>   s_sumMs{0.0};
-	static inline std::atomic<double>   s_sumSqMs{0.0};   			// ∑ ms²
+	static inline std::atomic<double>   s_sumSqMs{0.0};   		
 
-	/* helper ------------------------------------------------------------ */
+	// Accumulate and log kernel timings
 	static inline void recordKernelTime(double ms)
 	{
 		uint64_t n = ++s_frames;         
@@ -466,7 +491,7 @@ protected:
 	}
 };
 
-/* az × el cell ------------------------------------------------------- */
+// Map direction to bin index (azimuth × elevation)
 inline int TDF3D32::dirToBin(const Eigen::Vector3f &v) const
 {
 	float az = std::atan2(v.y(), v.x());
@@ -481,12 +506,12 @@ inline int TDF3D32::dirToBin(const Eigen::Vector3f &v) const
 	return bel*BINS_AZ + baz;          
 }
 
-/* pre-build 40×40 directional kernels -------------------------------- */
+// Build 40×40 directional kernels (21³ window per bin)
 inline void TDF3D32::initDirectionalKernels()
 {
 	m_dirKernels.resize(NUM_BINS);
 
-	auto binToDir = [](int az,int el){			  /* centre of each bin */
+	auto binToDir = [](int az,int el){			 
 		float azr = (az+0.5f)*2.0f*M_PI/BINS_AZ;
 		float elr = (-M_PI/2)+ (el+0.5f)*M_PI/BINS_EL;
 		float c = cosf(elr);
@@ -517,43 +542,6 @@ inline void TDF3D32::initDirectionalKernels()
 			const bool at_hit = (x == 0 && y == 0 && z == 0);
 			bool inShadow = behind && (re2 <= R_E*R_E);                 
 			DK.signs[k]   = (at_hit || inShadow) ? 0 : 1; 
-
-			// PLANO
-			// float re2 = float(x*x + y*y + z*z);
-			// float re  = std::sqrt(re2);
-			// int   rd  = std::min(32, int(std::ceil(re)));
-			// uint32_t mask = (rd == 0) ? 0u : (0xFFFFFFFFu >> (32 - rd));
-			// DK.distance_masks[k] = mask;
-			// const bool at_hit = (x == 0 && y == 0 && z == 0);
-			// const bool behind   = dir.dot(Eigen::Vector3f(x,y,z)) > 0.0f;
-			// const bool inShadow = behind;  
-			// DK.signs[k] = (at_hit || inShadow) ? 0 : 1;
-
-			// CONO
-			// Parámetros del cono (en voxeles y grados)
-			// #ifndef CONE_HALF_ANGLE_DEG
-			// #define CONE_HALF_ANGLE_DEG 25.0f   // ángulo semiapertura
-			// #endif
-			// #ifndef CONE_MAX_RADIUS_VOX
-			// #define CONE_MAX_RADIUS_VOX -1      // -1 = sin tope; >0 = limitar alcance
-			// #endif
-			// float re2 = float(x*x + y*y + z*z);
-			// float re  = std::sqrt(re2);
-			// int   rd  = std::min(32, int(std::ceil(re)));
-			// uint32_t mask = (rd == 0) ? 0u : (0xFFFFFFFFu >> (32 - rd));
-			// DK.distance_masks[k] = mask;
-			// Eigen::Vector3f p(x,y,z);
-			// const float axial = dir.dot(p);                 // >0 ⇒ detrás del plano
-			// const bool behind = axial > 0.0f;
-			// const float r_perp2 = std::max(0.0f, re2 - axial*axial);
-			// const float tan2 = std::tan(float(CONE_HALF_ANGLE_DEG) * float(M_PI/180.0f));
-			// const float tan2_sq = tan2 * tan2;
-			// bool inCone = behind && (r_perp2 <= (tan2_sq * axial * axial));
-			// #if CONE_MAX_RADIUS_VOX > 0
-			// 	inCone = inCone && (re <= float(CONE_MAX_RADIUS_VOX));
-			// #endif
-			// const bool at_hit = (x == 0 && y == 0 && z == 0);
-			// DK.signs[k] = (at_hit || inCone) ? 0 : 1;
 		}
 	}
 }

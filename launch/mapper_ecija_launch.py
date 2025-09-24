@@ -62,7 +62,6 @@ def generate_launch_description():
             parameters=[
                 {'use_sim_time':      True},
 
-                # Dataset: college_map
                 {'in_cloud':       '/global_cloud'},
                 {'use_tf':       False},
                 {'pc_downsampling':   1},
