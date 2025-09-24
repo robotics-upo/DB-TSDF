@@ -110,12 +110,12 @@ RUN git clone https://github.com/AcademySoftwareFoundation/openvdb.git && \
 ARG USERNAME=ros
 RUN useradd -m ${USERNAME} && echo "${USERNAME}:${USERNAME}" | chpasswd && adduser ${USERNAME} sudo
 
-# Set workspace location and clone D-LIO repo
+# Set workspace location and clone DB-TSDF repo
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}/ros2_ws
 RUN mkdir -p src && \
     cd src && \
-    git clone https://github.com/robotics-upo/D-LIO.git
+    git clone https://github.com/robotics-upo/DB-TSDF.git
 
 # Install remaining dependencies (except ANN, already installed)
 RUN bash -c "source /opt/ros/humble/setup.bash && \
