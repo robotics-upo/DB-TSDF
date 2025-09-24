@@ -34,7 +34,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'rviz_config_file',
-            default_value='/home/ros/ros2_ws/src/phd_dev/launch/default.rviz',
+            default_value='/home/ros/ros2_ws/src/DB-TSDF/launch/default.rviz',
             description='Archivo RViz a cargar.'
         ),
 
@@ -55,9 +55,9 @@ def generate_launch_description():
         ),
 
         Node(
-            package='dlo3d',
-            executable='dlo3d_mapper',
-            name='dlo3d_mapper',
+            package='db_tsdf',
+            executable='db_tsdf_mapper',
+            name='db_tsdf_mapper',
             output='screen',
             parameters=[
                 {'use_sim_time':      True},

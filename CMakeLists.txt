@@ -41,9 +41,9 @@ find_package(VTK REQUIRED COMPONENTS
 )
 
 
-add_executable(bd_tsdf_mapper  src/mapper_node_32.cpp  src/vtk_mesh_extractor.cpp)
+add_executable(db_tsdf_mapper  src/mapper_node_32.cpp  src/vtk_mesh_extractor.cpp)
 
-ament_target_dependencies(bd_tsdf_mapper
+ament_target_dependencies(db_tsdf_mapper
   rclcpp
   tf2            tf2_ros
   tf2_geometry_msgs
@@ -53,7 +53,7 @@ ament_target_dependencies(bd_tsdf_mapper
   Boost
 )
 
-target_link_libraries(bd_tsdf_mapper
+target_link_libraries(db_tsdf_mapper
   ${PCL_LIBRARIES}
   ${Boost_LIBRARIES}
   OpenMP::OpenMP_CXX
@@ -65,7 +65,7 @@ target_link_libraries(bd_tsdf_mapper
   VTK::ImagingGeneral
 )
 
-target_include_directories(bd_tsdf_mapper PRIVATE
+target_include_directories(db_tsdf_mapper PRIVATE
   include
   include/mesh
   ${Boost_INCLUDE_DIRS}
@@ -79,7 +79,7 @@ install(
 )
 
 install(TARGETS
-  bd_tsdf_mapper
+  db_tsdf_mapper
   DESTINATION lib/${PROJECT_NAME}
 )
 

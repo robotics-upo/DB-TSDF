@@ -118,7 +118,7 @@ public:
                 << fabs(m_tdfGridSizeZ_low) + fabs(m_tdfGridSizeZ_high) << "." 
                 << std::endl;
 
-        std::system("mkdir -p /home/ros/ros2_ws/map_ply");
+        // std::system("mkdir -p /home/ros/ros2_ws/map_ply");
     }
 
     ~DLO3DNode(){
@@ -316,19 +316,19 @@ void DLO3DNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstSha
 
         m_grid3d.loadCloud(pts);
 
-        if (counter % 10 == 0) { 
-            std::ostringstream fname;
-            fname << "/home/ros/ros2_ws/map_ply/frame_"
-                << std::setw(6) << std::setfill('0') << counter << ".ply";
-            std::thread([this, path=fname.str()]() {
-                try {
-                    m_grid3d.exportGridToPLY(path, 1); 
-                    RCLCPP_INFO(this->get_logger(), "Guardado mapa: %s", path.c_str());
-                } catch (const std::exception &e) {
-                    RCLCPP_ERROR(this->get_logger(), "Error guardando mapa PLY: %s", e.what());
-                }
-            }).detach();
-        }
+        // if (counter % 10 == 0) { 
+        //     std::ostringstream fname;
+        //     fname << "/home/ros/ros2_ws/map_ply/frame_"
+        //         << std::setw(6) << std::setfill('0') << counter << ".ply";
+        //     std::thread([this, path=fname.str()]() {
+        //         try {
+        //             m_grid3d.exportGridToPLY(path, 1); 
+        //             RCLCPP_INFO(this->get_logger(), "Guardado mapa: %s", path.c_str());
+        //         } catch (const std::exception &e) {
+        //             RCLCPP_ERROR(this->get_logger(), "Error guardando mapa PLY: %s", e.what());
+        //         }
+        //     }).detach();
+        // }
 
         sensor_msgs::msg::PointCloud2 cloud_corrected;
         pcl::toROSMsg(pcl_filtered, cloud_corrected);

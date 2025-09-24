@@ -82,7 +82,7 @@ Follow these steps to build and run DB-TSDF inside a Docker container:
       --name db_tsdf_container \
       db_tsdf_ros2:humble
     ```
-The Dockerfile sets up the entire environment and downloads the D-LIO code automatically.
+The Dockerfile sets up the entire environment and downloads the DB-TSDF code automatically.
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p> 

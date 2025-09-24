@@ -126,9 +126,9 @@ def generate_launch_description():
         ),
 
         Node(
-            package='dlo3d',
-            executable='dlo3d_mapper',
-            name='dlo3d_mapper',
+            package='db_tsdf',
+            executable='db_tsdf_mapper',
+            name='db_tsdf_mapper',
             output='screen',
             parameters=[
                 {'use_sim_time':      True},
