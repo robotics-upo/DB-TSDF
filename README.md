@@ -1,4 +1,4 @@
-# DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping
+<h1 align="center"><a href="https://arxiv.org/html/2509.20081v1" style="text-decoration:none;color:inherit;">DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping</a></h1>
 
 <div align="center">
   <a href="https://youtu.be/P4Hx4bD1OmM" 
