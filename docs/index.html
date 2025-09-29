@@ -157,10 +157,19 @@ body{
 .gallery-track{ display:flex; gap:var(--gap); will-change:transform; }
 .gallery-item{
   flex:0 0 calc((100% - 2*var(--gap)) / 3);
-  border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow);
-  background: var(--bg);
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:var(--shadow);
+  background:var(--bg);
+  aspect-ratio: 16/9; 
 }
-.gallery-item img{ width:100%; height:auto; display:block; }
+.gallery-item img{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;    
+}
 
 /* Arrows */
 .gallery-arrow{
