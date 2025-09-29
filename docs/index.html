@@ -213,7 +213,9 @@ pre{ background:color-mix(in oklab, var(--bg) 92%, #000 8%); color:var(--fg);
   padding: 6px 20px 0;
 }
 .funders img{
-  height:40px; object-fit:contain; filter: none;
+  max-height:80px;      
+  height:auto;         
+  object-fit:contain;
 }
 :root[data-theme="dark"] .funders img{
   filter: brightness(0.95) contrast(1.05);
@@ -357,8 +359,7 @@ a{ color:var(--link); } a:hover{ color:var(--link-hover); }
     <div class="content">
       <p>This work was supported by PICRA&nbsp;4.0 (PLEC2023-010353) funded by MCIN/AEI and the Spanish Research Agency, and by COBUILD (PID2024-161069OB-C31) funded by MICIU/AEI and the European Regional Development Fund (FEDER, EU).</p>
       <div class="funders" style="margin-top:10px;">
-        <!-- Replace filenames with your actual assets (media/...) -->
-        <img src="media/fondos_proyectos.png" alt="MCIN/AEI">
+        <img src="media/fondos_proyectos.png" alt="Logos">
       </div>
     </div>
   </section>
