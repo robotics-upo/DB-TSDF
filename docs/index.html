@@ -298,6 +298,9 @@ a{ color:var(--link); } a:hover{ color:var(--link-hover); }
             <!-- 3 initially hidden -->
             <div class="gallery-item"><img src="media/mai_city_detail2.png" alt="Runtime vs resolution"></div>
             <div class="gallery-item"><img src="media/mai_city_detail3.png" alt="Mai City detail"></div>
+            <div class="gallery-item"><img src="media/college_tittle.png" alt="Reconstruction overview"></div>
+            <div class="gallery-item"><img src="media/comparativa_ds_1.png" alt="Directional kernel concept"></div>
+            <div class="gallery-item"><img src="media/comparativa_ds_1.png" alt="Mesh close-up"></div>
           </div>
 
           <!-- arrows -->
@@ -422,37 +425,60 @@ a{ color:var(--link); } a:hover{ color:var(--link-hover); }
   })();
 
   // Auto-advancing gallery with manual arrows
-  (function(){
-    const viewport = document.getElementById('g-viewport');
-    const track = document.getElementById('g-track');
-    const prevBtn = document.getElementById('g-prev');
-    const nextBtn = document.getElementById('g-next');
-    const GAP = 12;
+(function(){
+  const viewport = document.getElementById('g-viewport');
+  const track    = document.getElementById('g-track');
+  const prevBtn  = document.getElementById('g-prev');
+  const nextBtn  = document.getElementById('g-next');
 
-    let step = 0;
-    function recalc(){ step = viewport.clientWidth / 3 + GAP; }
-    recalc(); window.addEventListener('resize', recalc);
+  let step = 0;
 
-    function advance(dir = 1){
-      track.style.transition = 'transform 600ms ease';
-      track.style.transform = `translateX(${dir < 0 ? step : -step}px)`;
-      const onEnd = ()=>{
-        track.removeEventListener('transitionend', onEnd);
-        if(dir > 0){ track.appendChild(track.firstElementChild); }
-        else{ track.insertBefore(track.lastElementChild, track.firstElementChild); }
-        track.style.transition = 'none';
-        track.style.transform = 'translateX(0)';
-        void track.offsetWidth;
-      };
-      track.addEventListener('transitionend', onEnd);
-    }
+  function getGapPx(){
+    const cs = getComputedStyle(track);
+    const g  = parseFloat(cs.gap || cs.columnGap || '0');
+    return isNaN(g) ? 0 : g;
+  }
 
-    let timer = setInterval(()=>advance(1), 5000);
-    nextBtn.addEventListener('click', ()=>{ clearInterval(timer); advance(1); timer = setInterval(()=>advance(1), 5000); });
-    prevBtn.addEventListener('click', ()=>{ clearInterval(timer); advance(-1); timer = setInterval(()=>advance(1), 5000); });
-    viewport.addEventListener('mouseenter', ()=> clearInterval(timer));
-    viewport.addEventListener('mouseleave', ()=> { timer = setInterval(()=>advance(1), 5000); });
-  })();
+  function recalc(){
+    const first = track.querySelector('.gallery-item');
+    if(!first) return;
+    const itemWidth = first.getBoundingClientRect().width; // ancho real de UNA tarjeta
+    const gapPx     = getGapPx();                           // gap real de flex
+    step = itemWidth + gapPx;                               // un solo ítem por salto
+  }
+
+  function advance(dir = 1){ // dir>0 = izquierda, dir<0 = derecha
+    track.style.transition = 'transform 600ms ease';
+    track.style.transform  = `translateX(${dir > 0 ? -step : step}px)`;
+    const onEnd = ()=>{
+      track.removeEventListener('transitionend', onEnd);
+      if(dir > 0){
+        track.appendChild(track.firstElementChild); // mueve 1 al final
+      }else{
+        track.insertBefore(track.lastElementChild, track.firstElementChild); // mueve 1 al principio
+      }
+      track.style.transition = 'none';
+      track.style.transform  = 'translateX(0)';
+      void track.offsetWidth; // reflow
+    };
+    track.addEventListener('transitionend', onEnd);
+  }
+
+  // init + resize
+  recalc();
+  window.addEventListener('resize', recalc);
+
+  // auto: cada 5s hacia la izquierda, 1 item
+  let timer = setInterval(()=>advance(1), 5000);
+
+  // controles manuales (izq/dcha) y reinicio del auto
+  nextBtn.addEventListener('click', ()=>{ clearInterval(timer); advance(1);  timer = setInterval(()=>advance(1), 5000); });
+  prevBtn.addEventListener('click', ()=>{ clearInterval(timer); advance(-1); timer = setInterval(()=>advance(1), 5000); });
+
+  // pausa al pasar el ratón
+  viewport.addEventListener('mouseenter', ()=> clearInterval(timer));
+  viewport.addEventListener('mouseleave', ()=> { timer = setInterval(()=>advance(1), 5000); });
+})();
 
   // Copy citation
   (function(){
