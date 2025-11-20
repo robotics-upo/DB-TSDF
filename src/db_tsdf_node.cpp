@@ -81,7 +81,6 @@ public:
         RCLCPP_INFO(this->get_logger(), "    Occ. Min. Hits: %d", m_occMinHits);
         RCLCPP_INFO(this->get_logger(), "    Shadow Radius:  %d voxels", m_shadowRadius);
         RCLCPP_INFO(this->get_logger(), "    Distance Mode:  %s", m_distanceMode.c_str());
-        RCLCPP_INFO(this->get_logger(), "    Kernel Size:    11x11x11 (Fixed)");
 
         RCLCPP_INFO(this->get_logger(), "  Filtering Params:");
         RCLCPP_INFO(this->get_logger(), "    Downsampling:   1 in every %d points", m_PcDownsampling);
