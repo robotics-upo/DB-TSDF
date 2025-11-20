@@ -32,9 +32,9 @@ db_tsdf_node:
 
 
     # --- Integration Kernel Parameters ---
-    kernel_size:   11                     # Integration kernel size. Must be an odd number.
+    kernel_size:   25                    # Integration kernel size. Must be an odd number.
     occ_min_hits:  80                    # Minimum hits to consider a voxel occupied
     bins_az:       360                   # Number of azimuthal bins
     bins_el:       360                   # Number of elevation bins
-    shadow_radius: 5                     # Shadow casting radius (in voxels)
+    shadow_radius: 10                     # Shadow casting radius (in voxels)
     distance_mode: "L2"                  # Distance metric (e.g., "L1", "L2")

@@ -1,5 +1,5 @@
-#ifndef __GRID_16_HPP__
-#define __GRID_16_HPP__
+#ifndef __GRID_32_HPP__
+#define __GRID_32_HPP__
 
 
 #include <algorithm>  
@@ -25,20 +25,20 @@
 
 struct VoxelData
 {
-	uint16_t d;		// Manhattan mask (bit-count -> distance)
+	uint32_t d;		// Manhattan mask (bit-count -> distance)
 	uint8_t s;		// bit0: sign (0 occ / 1 free)
 	uint8_t hits;	// hit counter
 };
-static_assert(sizeof(VoxelData) == 4, "VoxelData must be 4-bytes aligned");
+static_assert(sizeof(VoxelData) == 8, "VoxelData must be 4-bytes aligned");
 
 
-class GRID16
+class GRID32
 {
     public:
 
 	struct Iterator
     {
-        Iterator(GRID16* parent, VoxelData **grid, uint32_t i, uint32_t base, uint32_t j, uint32_t cellSizeX) 
+        Iterator(GRID32* parent, VoxelData **grid, uint32_t i, uint32_t base, uint32_t j, uint32_t cellSizeX) 
         { 
             _parent = parent;
             _grid = grid; 
@@ -87,18 +87,18 @@ class GRID16
         }  
 
         protected:
-        GRID16* _parent;
+        GRID32* _parent;
         VoxelData **_grid;
         VoxelData *_curr;
         uint32_t _i, _j, _base, _cellSizeX;
     };
 
 
-    GRID16(void)
+    GRID32(void)
 	{
 		_grid = NULL;
         _buffer = NULL; // Circular buffer to store all cell masks
-		_garbage = VoxelData{0xFFFFu, 0xFF, 0xFF};
+		_garbage = VoxelData{0xFFFFFFFFu, 0xFF, 0xFF};
 		_dummy = NULL;       
 
     }
@@ -158,7 +158,7 @@ class GRID16
         for (uint32_t k = 0; k < _gridSize; ++k) _grid[k] = _dummy;
     }    
 
-    ~GRID16(void)
+    ~GRID32(void)
 	{
 		if(_grid != NULL)
 			free(_grid);
@@ -204,7 +204,7 @@ class GRID16
             }
             VoxelData* cell = _grid[i];
             for (uint16_t j = 1; j < _cellSize; ++j) {
-                cell[j].d    = 0xFFFFu;
+                cell[j].d    = 0xFFFFFFFFu;
                 cell[j].s    = 1u;
                 cell[j].hits = 0u;
             }
@@ -296,12 +296,12 @@ class GRID16
         }
         if (cloud->empty())
         {
-            std::cerr << "[GRID16] Warning: Empty Cloud (no mask==0 found).\n";
+            std::cerr << "[GRID32] Warning: Empty Cloud (no mask==0 found).\n";
             return;
         }
-        std::cout << "[GRID16] Total points (mask==0): " << cloud->size() << "\n";
+        std::cout << "[GRID32] Total points (mask==0): " << cloud->size() << "\n";
         pcl::io::savePCDFileBinary(filename, *cloud);
-        std::cout << "[GRID16] PCD exported: " << filename << "\n";
+        std::cout << "[GRID32] PCD exported: " << filename << "\n";
     }
     
     void exportGridToPLY(const std::string& filename, int subsampling_factor)
@@ -344,12 +344,12 @@ class GRID16
         }
         if (cloud->empty())
         {
-            std::cerr << "[GRID16] Warning: Empty Cloud (no mask==0 found).\n";
+            std::cerr << "[GRID32] Warning: Empty Cloud (no mask==0 found).\n";
             return;
         }
-        std::cout << "[GRID16] Total points (mask==0): " << cloud->size() << "\n";
+        std::cout << "[GRID32] Total points (mask==0): " << cloud->size() << "\n";
         pcl::io::savePLYFileBinary(filename, *cloud);
-        std::cout << "[GRID16] PLY exported: " << filename << "\n";
+        std::cout << "[GRID32] PLY exported: " << filename << "\n";
     }
 
     void exportSubgridToCSV(const std::string& filename, int subsampling_factor)
@@ -457,7 +457,7 @@ class GRID16
     }
 
     void exportMesh(const std::string& filename, float iso_level, int occ_min_hits){
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Starting mesh extraction...");
+        RCLCPP_INFO(rclcpp::get_logger("GRID32_Mesh"), "Starting mesh extraction...");
 
         vtkSmartPointer<vtkAppendPolyData> appender = 
             vtkSmartPointer<vtkAppendPolyData>::New();
@@ -527,7 +527,7 @@ class GRID16
             }
         } 
 
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Joining cell meshes...");
+        RCLCPP_INFO(rclcpp::get_logger("GRID32_Mesh"), "Joining cell meshes...");
         appender->Update();
 
         auto ext_pos = filename.find_last_of('.');
@@ -554,7 +554,7 @@ class GRID16
             throw std::invalid_argument("Unsupported file extension: " + ext);
         }
         
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Mesh saved to %s", filename.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("GRID32_Mesh"), "Mesh saved to %s", filename.c_str());
     }
 
 

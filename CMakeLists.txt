@@ -41,7 +41,7 @@ find_package(VTK REQUIRED COMPONENTS
   ImagingMorphological
 )
 
-add_executable(db_tsdf_node  src/mapper_node_16.cpp)
+add_executable(db_tsdf_node  src/db_tsdf_node.cpp)
 
 ament_target_dependencies(db_tsdf_node
   rclcpp

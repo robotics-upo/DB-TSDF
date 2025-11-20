@@ -29,8 +29,8 @@
 #include <pcl/common/transforms.h> 
 
 // DB-TSDF
-#include <db_tsdf/tsdf3d_16.hpp>
-#include <db_tsdf/grid_16.hpp>
+#include <db_tsdf/tsdf3d_32.hpp>
+#include <db_tsdf/grid_32.hpp>
    
 class TSDFNode : public rclcpp::Node
 {
@@ -81,7 +81,6 @@ public:
         RCLCPP_INFO(this->get_logger(), "    Occ. Min. Hits: %d", m_occMinHits);
         RCLCPP_INFO(this->get_logger(), "    Shadow Radius:  %d voxels", m_shadowRadius);
         RCLCPP_INFO(this->get_logger(), "    Distance Mode:  %s", m_distanceMode.c_str());
-        RCLCPP_INFO(this->get_logger(), "    Kernel Size:    11x11x11 (Fixed)");
 
         RCLCPP_INFO(this->get_logger(), "  Filtering Params:");
         RCLCPP_INFO(this->get_logger(), "    Downsampling:   1 in every %d points", m_PcDownsampling);
@@ -171,7 +170,7 @@ private:
     bool m_useTfTopic{false};  // For legacy mode
 
     // TDF grid and geometry
-    TSDF3D16 m_grid3d;
+    TSDF3D32 m_grid3d;
     double m_tdfGridSizeX_low, m_tdfGridSizeX_high, 
            m_tdfGridSizeY_low, m_tdfGridSizeY_high, 
            m_tdfGridSizeZ_low, m_tdfGridSizeZ_high, 

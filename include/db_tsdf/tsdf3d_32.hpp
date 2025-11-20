@@ -1,5 +1,5 @@
-#ifndef __TSDF3D_16_HPP__
-#define __TSDF3D_16_HPP__
+#ifndef __TSDF3D_32_HPP__
+#define __TSDF3D_32_HPP__
 
 #include <algorithm>  
 #include <bitset>
@@ -8,7 +8,7 @@
 #include <boost/thread.hpp>
 #include <boost/chrono.hpp>
 #include "rclcpp/clock.hpp"
-#include <db_tsdf/grid_16.hpp>
+#include <db_tsdf/grid_32.hpp>
 
 #include <Eigen/Dense>	
 #include <iostream>
@@ -18,16 +18,16 @@
 
 struct DirectionalKernel
 {
-    std::vector<uint16_t> distance_masks;		// Manhattan distance masks
+    std::vector<uint32_t> distance_masks;		// Manhattan distance masks
     std::vector<uint8_t>  signs;		        // 0 = occ, 1 = free
 };
 
-class TSDF3D16
+class TSDF3D32
 {
 	
 public:
 
-	TSDF3D16(void) 
+	TSDF3D32(void) 
 	{
 		m_maxX = 40;
 		m_maxY = 40;
@@ -39,7 +39,7 @@ public:
 		m_oneDivRes = 1/m_resolution;
 	}
 
-	~TSDF3D16(void)
+	~TSDF3D32(void)
 	{
 	}
 
@@ -230,12 +230,12 @@ public:
 			float x, y, z;
 			for(zi=0, z=cloud[i].z-step; zi<m_kernelSize; zi++, z+=m_resolution)
 				for(yi=0, y=cloud[i].y-step; yi<m_kernelSize; yi++, y+=m_resolution){
-					GRID16::Iterator it = m_grid.getIterator(cloud[i].x-step,y,z);
+					GRID32::Iterator it = m_grid.getIterator(cloud[i].x-step,y,z);
 					for(xi=0, x=cloud[i].x-step; xi<m_kernelSize; xi++, x+=m_resolution,++it, ++k)
 					{						
 						VoxelData &v = *it;
-						uint16_t old_mask = v.d;
-						uint16_t new_mask = old_mask & DK.distance_masks[k];
+						uint32_t old_mask = v.d;
+						uint32_t new_mask = old_mask & DK.distance_masks[k];
 						if (new_mask != old_mask) v.d = new_mask;
 
 						if(DK.signs[k] == 0 && v.hits < m_occMinHits) 
@@ -259,14 +259,14 @@ public:
 
 			// Get neightbour values to compute trilinear interpolation
 			float c000, c001, c010, c011, c100, c101, c110, c111;
-			c000 = std::bitset<16>(m_grid.read(x, y, z).d).count(); 
-			c001 = std::bitset<16>(m_grid.read(x, y, z+m_resolution).d).count(); 
-			c010 = std::bitset<16>(m_grid.read(x, y+m_resolution, z).d).count(); 
-			c011 = std::bitset<16>(m_grid.read(x, y+m_resolution, z+m_resolution).d).count();  
-			c100 = std::bitset<16>(m_grid.read(x+m_resolution, y, z).d).count();  
-			c101 = std::bitset<16>(m_grid.read(x+m_resolution, y, z+m_resolution).d).count();  
-			c110 = std::bitset<16>(m_grid.read(x+m_resolution, y+m_resolution, z).d).count();  
-			c111 = std::bitset<16>(m_grid.read(x+m_resolution, y+m_resolution, z+m_resolution).d).count(); 
+			c000 = std::bitset<32>(m_grid.read(x, y, z).d).count(); 
+			c001 = std::bitset<32>(m_grid.read(x, y, z+m_resolution).d).count(); 
+			c010 = std::bitset<32>(m_grid.read(x, y+m_resolution, z).d).count(); 
+			c011 = std::bitset<32>(m_grid.read(x, y+m_resolution, z+m_resolution).d).count();  
+			c100 = std::bitset<32>(m_grid.read(x+m_resolution, y, z).d).count();  
+			c101 = std::bitset<32>(m_grid.read(x+m_resolution, y, z+m_resolution).d).count();  
+			c110 = std::bitset<32>(m_grid.read(x+m_resolution, y+m_resolution, z).d).count();  
+			c111 = std::bitset<32>(m_grid.read(x+m_resolution, y+m_resolution, z+m_resolution).d).count(); 
 
 			// Compute trilinear parameters
 			const float div = -m_oneDivRes*m_oneDivRes*m_oneDivRes;
@@ -307,7 +307,7 @@ public:
 protected:
 
 	// Grid parameters
-	GRID16 m_grid;
+	GRID32 m_grid;
 	float m_maxX, m_maxY, m_maxZ;
 	float m_minX, m_minY, m_minZ;
 	float m_resolution, m_oneDivRes;	
@@ -325,12 +325,12 @@ protected:
 	inline int dirToBin(const Eigen::Vector3f &v) const;
 	void initDirectionalKernels();
 
-	std::map<int, uint16_t> m_r_squared_to_mask16;
+	std::map<int, uint32_t> m_r_squared_to_mask32;
 
 };
 
 // Map direction to bin index (azimuth × elevation)
-inline int TSDF3D16::dirToBin(const Eigen::Vector3f &v) const
+inline int TSDF3D32::dirToBin(const Eigen::Vector3f &v) const
 {
 	float az = std::atan2(v.y(), v.x());
 	if (az < 0) 
@@ -349,12 +349,12 @@ inline int TSDF3D16::dirToBin(const Eigen::Vector3f &v) const
 }
 
 
-inline void TSDF3D16::initDirectionalKernels()
+inline void TSDF3D32::initDirectionalKernels()
 {
     if (m_distanceMode == "L2")
     {
-        std::cout << "--- [TSDF3D16] Generating 16-bit L2 (Euclidean) distance LUT..." << std::endl;
-        if (m_r_squared_to_mask16.empty())
+        std::cout << "--- [TSDF3D32] Generating 32-bit L2 (Euclidean) distance LUT..." << std::endl;
+        if (m_r_squared_to_mask32.empty())
         {
             std::set<int> unique_r_squared;
             for (int z = -m_kernelRadius; z <= m_kernelRadius; ++z) 
@@ -364,20 +364,20 @@ inline void TSDF3D16::initDirectionalKernels()
                         unique_r_squared.insert(x*x + y*y + z*z);
                     }
 
-            m_r_squared_to_mask16.clear();
-            uint16_t rank = 0; 
+            m_r_squared_to_mask32.clear();
+            uint32_t rank = 0; 
             
             std::cout << "---Rank -> L2 Distance (Voxels)" << std::endl;
             for (int r2 : unique_r_squared)
             {
-                uint16_t mask;
+                uint32_t mask;
                 if (rank == 0)      { mask = 0u; }
-                else if (rank < 16) { mask = (0xFFFFu >> (16 - rank)); }
-                else                { mask = 0xFFFFu; } 
-                m_r_squared_to_mask16[r2] = mask;
+                else if (rank < 32) { mask = (0xFFFFFFFFu >> (32 - rank)); }
+                else                { mask = 0xFFFFFFFFu; } 
+                m_r_squared_to_mask32[r2] = mask;
                 float l2_dist = std::sqrt(static_cast<float>(r2));
                 std::cout << std::setw(5) << rank << " -> " << l2_dist;
-                if (rank >= 16) { std::cout << " (Truncated to 16 bits)"; }
+                if (rank >= 32) { std::cout << " (Truncated to 32 bits)"; }
                 std::cout << std::endl;
                 rank++;
             }
@@ -385,11 +385,11 @@ inline void TSDF3D16::initDirectionalKernels()
     }
     else if (m_distanceMode == "L1")
     {
-        std::cout << "--- [TSDF3D16] Using 16-bit L1 (Manhattan) distance masks." << std::endl;
+        std::cout << "--- [TSDF3D32] Using 32-bit L1 (Manhattan) distance masks." << std::endl;
     }
     else
     {
-    	std::cerr << "[TSDF3D16] Warning: distance_mode '" << m_distanceMode << "' not recognized. Defaulting to 'L1'." << std::endl;
+    	std::cerr << "[TSDF3D32] Warning: distance_mode '" << m_distanceMode << "' not recognized. Defaulting to 'L1'." << std::endl;
     	m_distanceMode = "L1";
     }
 
@@ -427,14 +427,14 @@ inline void TSDF3D16::initDirectionalKernels()
             if (m_distanceMode == "L1")
             {
                 int l1_dist = std::abs(x) + std::abs(y) + std::abs(z);
-                int   rd  = std::min(16, l1_dist);         
-                uint16_t mask = (rd == 0) ? 0u : (0xFFFFu >> (16 - rd));
+                int   rd  = std::min(32, l1_dist);         
+                uint32_t mask = (rd == 0) ? 0u : (0xFFFFFFFFu >> (32 - rd));
                 DK.distance_masks[k] = mask;
             }
             else // "L2"
             {
                 int r2_int = x*x + y*y + z*z; 
-                DK.distance_masks[k] = m_r_squared_to_mask16[r2_int];
+                DK.distance_masks[k] = m_r_squared_to_mask32[r2_int];
             }
             
             bool behind   = dir.dot(Eigen::Vector3f(x,y,z)) >= 0.0f;     
@@ -463,8 +463,8 @@ inline void TSDF3D16::initDirectionalKernels()
                 for(int x = -m_kernelRadius; x <= m_kernelRadius; ++x) { 
                     int ix = x + m_kernelRadius;
                     int k_idx = (iz * m_kernelSize * m_kernelSize) + (iy * m_kernelSize) + ix;
-                    uint16_t mask = DK.distance_masks[k_idx];
-                    int rank = std::bitset<16>(mask).count();
+                    uint32_t mask = DK.distance_masks[k_idx];
+                    int rank = std::bitset<32>(mask).count();
                     uint8_t sign = DK.signs[k_idx];
                     char sign_char = (sign == 0) ? '#' : '.';
                     std::cout << " " << std::setw(2) << rank << sign_char;
