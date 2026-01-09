@@ -305,7 +305,8 @@ void TSDFNode::pointcloudCallback(const sensor_msgs::msg::PointCloud2::ConstShar
     pcl::transformPointCloud(pcl_filtered, pcl_out, T); 
 
     std::vector<pcl::PointXYZ> pts_global(pcl_out.points.begin(), pcl_out.points.end());
-    m_grid3d.loadCloud(pts_global);
+    Eigen::Vector3f sensor_position = T.block<3,1>(0,3);
+    m_grid3d.loadCloud(pts_global, sensor_position);
 
     sensor_msgs::msg::PointCloud2 cloud_corrected;
     pcl::toROSMsg(pcl_out, cloud_corrected);
