@@ -126,7 +126,7 @@ public:
 			out[i].y = s*cloud[i].x + c*cloud[i].y + ty; 
 			out[i].z = cloud[i].z + tz;
 		}
-		loadCloud(out);
+		loadCloud(out, Eigen::Vector3f(tx, ty, tz));
 	}
 
 	void loadCloud(std::vector<pcl::PointXYZ> &cloud, float tx, float ty, float tz, float roll, float pitch, float yaw)
@@ -154,7 +154,7 @@ public:
 			out[i].y = cloud[i].x*r10 + cloud[i].y*r11 + cloud[i].z*r12 + ty;
 			out[i].z = cloud[i].x*r20 + cloud[i].y*r21 + cloud[i].z*r22 + tz;	
 		}
-		loadCloud(out);
+		loadCloud(out, Eigen::Vector3f(tx, ty, tz));
 	}
 
 	void loadCloudFiltered(std::vector<pcl::PointXYZ> &cloud,
@@ -195,11 +195,11 @@ public:
 				out.push_back(p);
 			}
 		}
-		loadCloud(out);
+		loadCloud(out, Eigen::Vector3f(tx, ty, tz));
 	}
 
 
-	void loadCloud(std::vector<pcl::PointXYZ> &cloud)
+	void loadCloud(std::vector<pcl::PointXYZ> &cloud, const Eigen::Vector3f &sensor_pos_world)
 	{	
 		// Allocate required submetric cells
 		for(uint32_t i=0; i<cloud.size(); i++)
@@ -223,7 +223,8 @@ public:
 				continue;
 
 			// Select kernel by ray direction
-			Eigen::Vector3f dir(cloud[i].x, cloud[i].y, cloud[i].z);
+			Eigen::Vector3f point_world(cloud[i].x, cloud[i].y, cloud[i].z);
+        	Eigen::Vector3f dir = point_world - sensor_pos_world;
 			const DirectionalKernel& DK = m_dirKernels[dirToBin(dir)];
 
 			int xi, yi, zi, k = 0;

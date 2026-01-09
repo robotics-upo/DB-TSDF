@@ -20,7 +20,7 @@ db_tsdf_node:
 
     # --- TSDF Grid Definition ---
     # Defines the boundaries and resolution of the TSDF volume
-    tdf_grid_res: 0.05                   # Voxel resolution (meters)
+    tdf_grid_res: 0.025                   # Voxel resolution (meters)
     tdf_max_cells: 100000.0              # Maximum allocated cells
 
     tdfGridSizeX_low: -100.0             # Grid X-axis minimum (meters)
@@ -32,9 +32,9 @@ db_tsdf_node:
 
 
     # --- Integration Kernel Parameters ---
-    kernel_size: 5                       # Integration kernel size. Must be an odd number.
+    kernel_size: 10                       # Integration kernel size. Must be an odd number.
     occ_min_hits: 1                      # Minimum hits to consider a voxel occupied
     bins_az: 360                          # Number of azimuthal bins
     bins_el: 360                          # Number of elevation bins
-    shadow_radius: 3                     # Shadow casting radius (in voxels)
-    distance_mode: "L1"                  # Distance metric (e.g., "L1", "L2")
+    shadow_radius: 5                     # Shadow casting radius (in voxels)
+    distance_mode: "L2"                  # Distance metric (e.g., "L1", "L2")
