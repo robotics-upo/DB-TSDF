@@ -543,6 +543,36 @@
     a:hover {
       color: var(--link-hover);
     }
+
+    /* Method Note Styling */
+    .method-note {
+      margin-bottom: 24px;
+      font-weight: 700;
+      color: #000;
+    }
+
+    .method-note .label {
+      color: var(--brand);
+    }
+
+    /* Dark mode overrides for method note */
+    :root[data-theme="dark"] .method-note {
+      color: #fff;
+    }
+
+    :root[data-theme="dark"] .method-note .label {
+      color: var(--accent);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme]) .method-note {
+        color: #fff;
+      }
+
+      :root:not([data-theme]) .method-note .label {
+        color: var(--accent);
+      }
+    }
   </style>
 </head>
 
@@ -648,9 +678,9 @@
         <h2>Method</h2>
       </header>
       <div class="content">
-        <p style="margin-bottom: 24px; font-weight: 500; color: var(--brand);">
-          <span style="color: var(--accent);">New:</span> A 16-bit version is now available, offering improved memory
-          efficiency and performance.
+        <p class="method-note">
+          <span class="label">New:</span> A 16-bit version is now available, offering improved memory efficiency and
+          performance.
         </p>
         <p>Each LiDAR return selects a precomputed, direction-dependent kernel (aligned to azimuth/elevation bins) and
           applies a bitwise AND update to the voxel’s 32-bit distance mask. A hemispherical shadow region increments a
