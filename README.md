@@ -11,11 +11,11 @@
 </div>
 
 
-**DB-TSDF** presents a high-efficiency, **CPU-only framework** for volumetric mapping. It utilizes a novel **directional bitmask-based integration scheme** to incrementally fuse LiDAR data into a dense voxel grid.
+**DB-TSDF** presents a high-efficiency, CPU-only framework for volumetric mapping. It utilizes a novel directional bitmask-based integration scheme to incrementally fuse LiDAR data into a dense voxel grid.
 
 Key features include:
 - **Directional Kernels:** Efficiently model beam geometry and occlusion in 3D.
-- **Bitmask Encoding:** Ensures **constant-time updates** per scan, independent of grid resolution.
+- **Bitmask Encoding:** Ensures constant-time updates per scan, independent of grid resolution.
 - **High Performance:** Multi-threaded C++ implementation fully integrated with ROS 2.
 
 The design prioritizes predictable runtime and high-resolution reconstruction, making it an ideal solution for robotic platforms with limited GPU resources. 
