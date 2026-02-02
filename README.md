@@ -135,6 +135,21 @@ The node provides ROS 2 services to export the reconstructed map:
 <p align="right">(<a href="#readme-top">back to top</a>)</p> 
 
 
+## Citation
+If you use DB-TSDF in your research, please cite our ICRA 2026 paper:
+
+```bibtex
+@inproceedings{maese2026dbtsdf,
+  title={DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping},
+  author={Maese, Jose E. and Caballero, Fernando and Merino, Luis},
+  booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
+  year={2026}
+}
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+
+
 ## Acknowledgements
 
 ![Logos](docs/media/fondos_proyectos.png)
