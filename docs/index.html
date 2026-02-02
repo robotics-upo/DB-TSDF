@@ -648,6 +648,10 @@
         <h2>Method</h2>
       </header>
       <div class="content">
+        <p style="margin-bottom: 24px; font-weight: 500; color: var(--brand);">
+          <span style="color: var(--accent);">New:</span> A 16-bit version is now available, offering improved memory
+          efficiency and performance.
+        </p>
         <p>Each LiDAR return selects a precomputed, direction-dependent kernel (aligned to azimuth/elevation bins) and
           applies a bitwise AND update to the voxel’s 32-bit distance mask. A hemispherical shadow region increments a
           saturating counter to confirm occupancy. The compact 8-byte voxel layout is cache-friendly and parallelizable.
@@ -656,10 +660,7 @@
           <img src="media/diagram.png" alt="DB-TSDF pipeline"
             style="max-width:100%;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);" />
         </p>
-        <p style="margin-top: 16px; font-weight: 500; color: var(--brand);">
-          <span style="color: var(--accent);">New:</span> A 16-bit version is now available, offering improved memory
-          efficiency and performance.
-        </p>
+
       </div>
     </section>
 
