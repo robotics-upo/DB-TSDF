@@ -11,32 +11,18 @@
 </div>
 
 
-This paper presents a high-efficiency, CPU-only volumetric mapping framework based on a Truncated Signed Distance Field (TSDF). The system incrementally fuses raw LiDAR point-cloud data into a voxel grid using a directional bitmask-based integration scheme, producing dense and consistent TSDF representations suitable for real-time 3D reconstruction. A key feature of the approach is that the processing time per point-cloud remains constant, regardless of the voxel grid resolution, enabling high resolution mapping without sacrificing runtime performance. In contrast to most recent TSDF/ESDF methods that rely on GPU acceleration, our method operates entirely on CPU, achieving competitive results in speed. Experiments on real-world open datasets demonstrate that the generated maps attain accuracy on par with contemporary mapping techniques. 
+**DB-TSDF** presents a high-efficiency, **CPU-only framework** for volumetric mapping. It utilizes a novel **directional bitmask-based integration scheme** to incrementally fuse LiDAR data into a dense voxel grid.
+
+Key features include:
+- **Directional Kernels:** Efficiently model beam geometry and occlusion in 3D.
+- **Bitmask Encoding:** Ensures **constant-time updates** per scan, independent of grid resolution.
+- **High Performance:** Multi-threaded C++ implementation fully integrated with ROS 2.
+
+The design prioritizes predictable runtime and high-resolution reconstruction, making it an ideal solution for robotic platforms with limited GPU resources. 
 
 ![Example reconstruction](docs/media/college_tittle.png)
 
----
 
-## Overview
-
-This framework incrementally fuses LiDAR data into a dense voxel grid:  
-- **Directional kernels** model LiDAR beam geometry and occlusion.  
-- **Bitmask encoding** ensures constant-time updates per scan.  
-- **Signed distance representation** differentiates free and occupied space.  
-- **Multi-threaded C++** implementation inside ROS 2.  
-
-The design emphasizes predictable runtime, high resolution, and full CPU compatibility, making it suitable for robotic platforms where GPU resources are limited.
-
-<details>
-  <summary>Index</summary>
-
-- [1. Prerequisites](#1-prerequisites)
-- [2. Installation](#2-installation)
-  - [2.1 Install Locally](#21-install-locally)
-  - [2.2 Install Using Docker](#22-install-using-docker)
-- [3. Running the Code](#3-running-the-code)
-- [4. Output Data and Services](#4-output-data-and-services)
-</details>
 
 
 ## 1. Prerequisites
@@ -44,7 +30,7 @@ The design emphasizes predictable runtime, high resolution, and full CPU compati
 Before you begin, make sure you have ROS 2 Humble and Ubuntu 22.04 (or higher) installed on your system. These are the core requirements for the project to run smoothly. If you haven't installed ROS 2 Humble yet, follow the official [installation guide](https://docs.ros.org/en/humble/Installation.html) for your platform. This guide will walk you through all the necessary steps to set up the core ROS 2 environment on your system. 
 
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+ 
 
 ## 2. Installation
 
@@ -88,7 +74,7 @@ Follow these steps to build and run DB-TSDF inside a Docker container:
 The Dockerfile sets up the entire environment and downloads the DB-TSDF code automatically.
 
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+ 
 
 ## 3. Running the Code
 
@@ -109,10 +95,38 @@ To feed data, simply play a recorded ROS 2 bag in another terminal:
    ros2 bag play /path/to/your_dataset
    ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+ 
 
 
-## 4. Output data and Services
+## 4. Configuration
+
+The system is highly configurable via YAML parameters (e.g., `config/college.yaml`).
+
+### Core Parameters
+| Parameter | Type | Description | Default |
+| :--- | :---: | :--- | :---: |
+| `in_cloud` | `string` | Input PointCloud2 topic | `/os_cloud_node/points` |
+| `odom_frame_id` | `string` | Fixed frame for TF lookup | `odom` |
+| `use_tf` | `bool` | Enable/Disable TF transformations | `True` |
+
+### Grid Definition
+| Parameter | Type | Description | Default |
+| :--- | :---: | :--- | :---: |
+| `tdf_grid_res` | `float` | Voxel side length in meters | `0.05` |
+| `tdf_max_cells` | `int` | Max active cells in hash table | `75000` |
+| `tdfGridSize*_low/high` | `float` | Physical volume boundaries | `+/-100` |
+
+### Integration Kernel
+| Parameter | Type | Description | Default |
+| :--- | :---: | :--- | :---: |
+| `kernel_size` | `int` | Kernel size (odd number) | `11` |
+| `bins_az` / `bins_el` | `int` | Angular discretization | `360` |
+| `occ_min_hits` | `int` | Min measurements to mark occupied | `50` |
+
+
+
+
+## 5. Output Data and Services
 
 The node provides ROS 2 services to export the reconstructed map:
 
@@ -132,9 +146,9 @@ The node provides ROS 2 services to export the reconstructed map:
    ros2 service call /save_grid_csv std_srvs/srv/Trigger "{}"
     ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+ 
 
-
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 ## Citation
 If you use DB-TSDF in your research, please cite our ICRA 2026 paper:
 
@@ -147,11 +161,11 @@ If you use DB-TSDF in your research, please cite our ICRA 2026 paper:
 }
 ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> 
+ 
 
 
 ## Acknowledgements
 
 ![Logos](docs/media/fondos_proyectos.png)
 
-This work was supported by the grants PICRA 4.0 (PLEC2023-010353), funded by the Spanish Ministry of Science and Innovation and the Spanish Research Agency (MCIN/AEI/10.13039/501100011033); and COBUILD (PID2024-161069OB-C31), funded by the  panish Ministry of Science, Innovation and Universities, the Spanish Research Agency (MICIU/AEI/10.13039/501100011033) and the European Regional Development Fund (FEDER, UE).
+This work was supported by the grants PICRA 4.0 (PLEC2023-010353), funded by the Spanish Ministry of Science and Innovation and the Spanish Research Agency (MCIN/AEI/10.13039/501100011033); and COBUILD (PID2024-161069OB-C31), funded by the Spanish Ministry of Science, Innovation and Universities, the Spanish Research Agency (MICIU/AEI/10.13039/501100011033) and the European Regional Development Fund (FEDER, UE).
