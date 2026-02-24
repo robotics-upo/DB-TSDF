@@ -1,14 +1,14 @@
-<h1 align="center"><a href="https://arxiv.org/html/2509.20081v1" style="text-decoration:none;color:inherit;">DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping</a></h1>
+<h1 align="center"><a href="https://arxiv.org/abs/2509.20081" style="text-decoration:none;color:inherit;">DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping</a></h1>
+
+<h3 align="center">
+  Accepted at the <a href="https://2026.ieee-icra.org/">IEEE International Conference on Robotics and Automation (ICRA) 2026</a>
+</h3>
 
 <p align="center">
-<strong>🤖 <a href="https://robotics-upo.github.io/DB-TSDF/">Visit the project website</a> 🤖</strong>
+  <a href="https://robotics-upo.github.io/DB-TSDF/"><img src="https://img.shields.io/badge/Project-Website-007acc?style=flat" alt="Project Website"></a>
+  <a href="https://youtu.be/P4Hx4bD1OmM"><img src="https://img.shields.io/badge/YouTube-Video-red?style=flat&logo=youtube" alt="YouTube Video"></a>
+  <a href="https://arxiv.org/abs/2509.20081"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?style=flat&logo=arxiv" alt="arXiv Paper"></a>
 </p>
-
-<div align="center">
-<a href="https://youtu.be/P4Hx4bD1OmM"><img src="https://img.shields.io/badge/YouTube-Video-red?logo=youtube" alt="YouTube Video"></a>
-  <a href="https://arxiv.org/html/2509.20081v1"><img src="https://img.shields.io/badge/arXiv-Paper-b31b1b?logo=arxiv" alt="arXiv Paper"></a>
-  </a>
-</div>
 
 
 **DB-TSDF** presents a high-efficiency, CPU-only framework for volumetric mapping. It utilizes a novel directional bitmask-based integration scheme to incrementally fuse LiDAR data into a dense voxel grid.
@@ -168,4 +168,4 @@ If you use DB-TSDF in your research, please cite our ICRA 2026 paper:
 
 ![Logos](docs/media/fondos_proyectos.png)
 
-This work was supported by the grants PICRA 4.0 (PLEC2023-010353), funded by the Spanish Ministry of Science and Innovation and the Spanish Research Agency (MCIN/AEI/10.13039/501100011033); and COBUILD (PID2024-161069OB-C31), funded by the Spanish Ministry of Science, Innovation and Universities, the Spanish Research Agency (MICIU/AEI/10.13039/501100011033) and the European Regional Development Fund (FEDER, UE).
+This work was supported by the grants PICRA 4.0 (PLEC2023-010353), funded by the Spanish Ministry of Science and Innovation and the Spanish Research Agency (MCIN/AEI/10.13039/501100011033); and INSERTION (PID2021-127648OB-C31), funded by the "Agencia Estatal de Investigación - Ministerio de Ciencia, Innovación y Universidades" and the "European Union NextGenerationEU/PRTR".

@@ -297,7 +297,7 @@
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--accent);
       color: var(--fg);
       text-decoration: none;
       padding: 10px 16px;
@@ -308,14 +308,8 @@
     .btn:hover {
       transform: translateY(-1px);
       box-shadow: 0 10px 24px rgba(0, 0, 0, .10);
-      border-color: rgba(0, 55, 113, .25);
-    }
-
-    .btn .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent), transparent 92%);
     }
 
     /* ===== Sections / Wide dynamic ruler ===== */
@@ -607,6 +601,9 @@
     <!-- ===== Hero ===== -->
     <section class="hero" id="overview">
 
+      <a href="https://2026.ieee-icra.org/" target="_blank" rel="noopener" class="hero-badge"
+        style="text-decoration:none;">Accepted at IEEE ICRA 2026</a>
+
       <h1>
         <span class="brand-name">DB-TSDF</span>
         <span class="desc">Directional Bitmask-based TSDF for Efficient Volumetric Mapping</span>
@@ -630,14 +627,14 @@
 
       <!-- External quick links -->
       <div class="quick-links">
-        <a class="btn" href="https://arxiv.org/html/2509.20081v1" target="_blank" rel="noopener">
-          <span class="dot"></span>Paper
+        <a class="btn" href="https://arxiv.org/abs/2509.20081" target="_blank" rel="noopener">
+          Paper
         </a>
         <a class="btn" href="https://www.youtube.com/watch?v=P4Hx4bD1OmM" target="_blank" rel="noopener">
-          <span class="dot"></span>Video
+          Video
         </a>
         <a class="btn" href="https://github.com/robotics-upo/DB-TSDF" target="_blank" rel="noopener">
-          <span class="dot"></span>Code
+          Code
         </a>
       </div>
     </section>
@@ -737,8 +734,8 @@
       </header>
       <div class="content">
         <p>This work was supported by PICRA&nbsp;4.0 (PLEC2023-010353) funded by MCIN/AEI and the Spanish Research
-          Agency, and by COBUILD (PID2024-161069OB-C31) funded by MICIU/AEI and the European Regional Development Fund
-          (FEDER, EU).</p>
+          Agency; and INSERTION (PID2021-127648OB-C31), funded by the "Agencia Estatal de Investigación -
+          Ministerio de Ciencia, Innovación y Universidades" and the "European Union NextGenerationEU/PRTR".</p>
         <div class="funders" style="margin-top:10px;">
           <img src="media/fondos_proyectos.png" alt="Logos">
         </div>
