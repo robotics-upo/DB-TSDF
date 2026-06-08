@@ -2,23 +2,37 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# DB-TSDF — MaiCity quick-test dataset fetcher (sequence 01 only)
+# DB-TSDF: MaiCity quick-test dataset fetcher (sequence 01 only)
 #
 # Fully self-contained: downloads the official MaiCity archive, extracts only
 # the sequence 01 bag, converts it from ROS 1 (.bag) to ROS 2 (rosbag2) and
-# removes every intermediate file, leaving a single ready-to-play dataset at
-# datasets/mai_city/01/.
+# removes every intermediate file, leaving a single ready-to-play dataset.
+#
+# Datasets are workspace-level artifacts: when the repo lives at the standard
+# ROS 2 location <ws>/src/db_tsdf, the dataset is placed at <ws>/datasets/
+# (alongside build/install/log); otherwise it falls back to <repo>/datasets/.
 #
 # Source dataset: https://www.ipb.uni-bonn.de/data/mai-city-dataset/
 #
 # Usage:
 #   ./scripts/download_test.sh
-#   ros2 bag play datasets/mai_city/01
+#   ros2 bag play <printed dataset path>/mai_city/01
 # ---------------------------------------------------------------------------
 
 readonly SEQ="01"
-readonly ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly DATASET_DIR="${ROOT_DIR}/datasets/mai_city/${SEQ}"
+readonly REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Datasets are workspace-level artifacts (like build/install/log), not source
+# code. When the repo follows the standard ROS 2 layout (<ws>/src/db_tsdf),
+# place them at the workspace root; otherwise fall back to <repo>/datasets.
+if [[ "$(basename "$(dirname "${REPO_DIR}")")" == "src" ]]; then
+    DATASETS_ROOT="$(cd "${REPO_DIR}/../.." && pwd)/datasets"
+else
+    DATASETS_ROOT="${REPO_DIR}/datasets"
+fi
+readonly DATASETS_ROOT
+
+readonly DATASET_DIR="${DATASETS_ROOT}/mai_city/${SEQ}"
 readonly TARBALL_URL="https://www.ipb.uni-bonn.de/html/projects/mai_city/mai_city.tar.gz"
 
 readonly WORK_DIR="$(mktemp -d)"
@@ -31,13 +45,18 @@ step() { printf '\n[%(%H:%M:%S)T] >> %s\n' -1 "$*"; }
 
 step "[1/4] Resolving dependencies"
 if command -v rosbags-convert >/dev/null 2>&1; then
-    log "rosbags-convert already available — skipping installation"
+    log "rosbags-convert already available, skipping installation"
 else
     log "Installing 'rosbags' (provides rosbags-convert, ROS 1 -> ROS 2 bag converter)"
-    # --user keeps the install confined to this account; --break-system-packages
-    # is required on PEP 668 distros (Ubuntu 23.10+/Debian 12+) and is safe here
-    # since nothing is written to the system site-packages.
-    pip3 install --user --quiet --break-system-packages rosbags
+    # --user keeps the install confined to this account. --break-system-packages
+    # is required on PEP 668 distros (Ubuntu 23.10+/Debian 12+, e.g. the host)
+    # but is unknown to older pip versions (e.g. Ubuntu 22.04 inside the Docker
+    # image), so only pass it when pip actually supports it.
+    PIP_EXTRA_ARGS=()
+    if pip3 install --help 2>/dev/null | grep -q -- '--break-system-packages'; then
+        PIP_EXTRA_ARGS+=(--break-system-packages)
+    fi
+    pip3 install --user --quiet "${PIP_EXTRA_ARGS[@]}" rosbags
     export PATH="${HOME}/.local/bin:${PATH}"
 fi
 
@@ -56,7 +75,7 @@ if [[ -z "${BAG_FILE}" ]]; then
     echo "ERROR: could not locate a .bag file for sequence ${SEQ} inside the archive." >&2
     exit 1
 fi
-log "Found $(basename "${BAG_FILE}") — converting to rosbag2..."
+log "Found $(basename "${BAG_FILE}") , converting to rosbag2..."
 
 mkdir -p "$(dirname "${DATASET_DIR}")"
 rm -rf "${DATASET_DIR}"
@@ -69,6 +88,6 @@ log "Removed downloaded archive and intermediate ROS 1 bag"
 
 echo
 echo "============================================================================"
-echo " MaiCity sequence ${SEQ} is ready at: datasets/mai_city/${SEQ}"
-echo " Play it with:  ros2 bag play datasets/mai_city/${SEQ}"
+echo " MaiCity sequence ${SEQ} is ready at: ${DATASET_DIR}"
+echo " Play it with:  ros2 bag play ${DATASET_DIR}"
 echo "============================================================================"

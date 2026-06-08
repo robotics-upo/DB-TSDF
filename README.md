@@ -34,8 +34,30 @@ Before you begin, make sure you have ROS 2 Humble and Ubuntu 22.04 (or higher) i
 
 ## 2. Installation
 
-### Install locally
-To install and build the project, clone it into the `src` folder of a ROS 2 workspace and build the workspace with `colcon`:
+### Option A — Docker (recommended)
+The `Dockerfile` is self-contained: it installs ROS 2 Humble and every
+dependency, clones the repo and builds it with `colcon`. Fastest way to a clean,
+reproducible setup.
+
+   ```bash
+   git clone https://github.com/robotics-upo/DB-TSDF.git
+   cd DB-TSDF
+   docker build -t db_tsdf_ros2:humble \
+     --build-arg USER_UID=$(id -u) \
+     --build-arg USER_GID=$(id -g) .
+   xhost +local:docker   # allow GUI apps like RViz
+   docker run -it \
+     --env="DISPLAY" \
+     --env="QT_X11_NO_MITSHM=1" \
+     --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+     --name db_tsdf_container \
+     db_tsdf_ros2:humble
+   ```
+
+To resume the same container later: `docker start -ai db_tsdf_container`.
+
+### Option B — Local ROS 2 workspace
+Clone into the `src` folder of a ROS 2 workspace and build with `colcon`:
 
    ```bash
    mkdir -p ~/ros2_ws/src
@@ -47,67 +69,44 @@ To install and build the project, clone it into the `src` folder of a ROS 2 work
    source install/setup.bash
    ```
 
-### Install using Docker
-The provided `Dockerfile` is self-contained: it installs ROS 2 Humble and every
-dependency DB-TSDF needs, clones the repository and builds it with `colcon`, so
-the resulting image is ready to run as soon as it's built.
-
-1. Clone the repository (you only need the `Dockerfile`, but cloning is the simplest way to get it):
-    ```bash
-    git clone https://github.com/robotics-upo/DB-TSDF.git
-    cd DB-TSDF
-    ```
-
-2. Build the Docker image:
-    ```bash
-    docker build -t db_tsdf_ros2:humble \
-      --build-arg USER_UID=$(id -u) \
-      --build-arg USER_GID=$(id -g) .
-    ```
-
-3. Allow Docker to access the X server (for GUI like RViz):
-    ```bash
-    xhost +local:docker
-    ```
-
-4. Run the container — the workspace is already built and sourced, ready to launch:
-    ```bash
-    docker run -it \
-      --env="DISPLAY" \
-      --env="QT_X11_NO_MITSHM=1" \
-      --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
-      --name db_tsdf_container \
-      db_tsdf_ros2:humble
-    ```
-
-
  
 
 ## 3. Running the Code
 
-The launch system uses a single main launch file (`mapper_launch.py`) and a config argument to specify which dataset configuration to load.
+The launch system uses a single main launch file (`mapper_launch.py`) and a config argument that selects which dataset configuration to load (e.g., `mai` loads `mai.yaml` and `mai.rviz`).
 
-This argument (e.g., `college`) will automatically load the corresponding parameter file (`college.yaml`) and the RViz configuration (`college.rviz`).
+### Quick start with a test dataset
 
-First, open a terminal, source your workspace, and run the launch file. The node will start, RViz will open, and the system will wait for data.
-
-To launch using the college configuration:
+1. Download a ready-to-play MaiCity sequence. The script fetches the official archive, converts it from ROS 1 to rosbag2 and removes every intermediate file, leaving the dataset at `datasets/mai_city/<sequence>/` (path printed on completion):
    ```bash
-   ros2 launch db_tsdf mapper_launch.py config:=college
+   ./src/db_tsdf/scripts/download_test.sh        # sequence 01 only — quick test (~215 MB)
+   ./src/db_tsdf/scripts/download_mai_city.sh    # all sequences (~3.4 GB)
    ```
 
-
-To feed data, simply play a recorded ROS 2 bag in another terminal:
+2. Launch DB-TSDF with the matching config. RViz will open and the node will wait for data:
    ```bash
-   ros2 bag play /path/to/your_dataset
+   ros2 launch db_tsdf mapper_launch.py config:=mai
    ```
+
+3. In a second terminal, play the dataset back:
+
+   For the Docker container, open one with:
+   ```bash
+   docker exec -it db_tsdf_container bash
+   ```
+
+   and run it with:
+   ```bash
+   ros2 bag play ~/ros2_ws/datasets/mai_city/01
+   ```
+
 
  
 
 
 ## 4. Configuration
 
-The system is highly configurable via YAML parameters (e.g., `config/college.yaml`).
+The system is highly configurable via YAML parameters. (e.g., `config/college.yaml`).
 
 ### Core Parameters
 | Parameter | Type | Description | Default |
@@ -115,19 +114,21 @@ The system is highly configurable via YAML parameters (e.g., `config/college.yam
 | `in_cloud` | `string` | Input PointCloud2 topic | `/os_cloud_node/points` |
 | `odom_frame_id` | `string` | Fixed frame for TF lookup | `odom` |
 | `use_tf` | `bool` | Enable/Disable TF transformations | `True` |
+| `verbose_init` | `bool` | Full parameter dump + kernel preview at startup | `False` |
 
 ### Grid Definition
 | Parameter | Type | Description | Default |
 | :--- | :---: | :--- | :---: |
 | `tdf_grid_res` | `float` | Voxel side length in meters | `0.05` |
 | `tdf_max_cells` | `int` | Max active cells in hash table | `75000` |
-| `tdfGridSize*_low/high` | `float` | Physical volume boundaries | `+/-100` |
+| `tdfGridSizeX/Y*_low/high` | `float` | Horizontal volume boundaries | `+/-100` |
+| `tdfGridSizeZ_low/high` | `float` | Vertical volume boundaries | `-10 / +50` |
 
 ### Integration Kernel
 | Parameter | Type | Description | Default |
 | :--- | :---: | :--- | :---: |
-| `kernel_size` | `int` | Kernel size (odd number) | `11` |
-| `bins_az` / `bins_el` | `int` | Angular discretization | `360` |
+| `kernel_size` | `int` | Kernel size (odd number) | `7` |
+| `bins_az` / `bins_el` | `int` | Angular discretization | `60` |
 | `occ_min_hits` | `int` | Min measurements to mark occupied | `50` |
 
 
