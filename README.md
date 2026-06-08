@@ -34,19 +34,25 @@ Before you begin, make sure you have ROS 2 Humble and Ubuntu 22.04 (or higher) i
 
 ## 2. Installation
 
-### Install localy
-To install and build the project, simply clone the repository as follows:
+### Install locally
+To install and build the project, clone it into the `src` folder of a ROS 2 workspace and build the workspace with `colcon`:
 
    ```bash
+   mkdir -p ~/ros2_ws/src
+   cd ~/ros2_ws/src
    git clone https://github.com/robotics-upo/DB-TSDF.git
-   cd ..
+   cd ~/ros2_ws
+   rosdep install --from-paths src --ignore-src -r -y
    colcon build
    source install/setup.bash
    ```
 
 ### Install using Docker
-Follow these steps to build and run DB-TSDF inside a Docker container:
-1. Clone the repository:
+The provided `Dockerfile` is self-contained: it installs ROS 2 Humble and every
+dependency DB-TSDF needs, clones the repository and builds it with `colcon`, so
+the resulting image is ready to run as soon as it's built.
+
+1. Clone the repository (you only need the `Dockerfile`, but cloning is the simplest way to get it):
     ```bash
     git clone https://github.com/robotics-upo/DB-TSDF.git
     cd DB-TSDF
@@ -54,7 +60,9 @@ Follow these steps to build and run DB-TSDF inside a Docker container:
 
 2. Build the Docker image:
     ```bash
-    docker build -t db_tsdf_ros2:humble .
+    docker build -t db_tsdf_ros2:humble \
+      --build-arg USER_UID=$(id -u) \
+      --build-arg USER_GID=$(id -g) .
     ```
 
 3. Allow Docker to access the X server (for GUI like RViz):
@@ -62,7 +70,7 @@ Follow these steps to build and run DB-TSDF inside a Docker container:
     xhost +local:docker
     ```
 
-4. Run the container
+4. Run the container — the workspace is already built and sourced, ready to launch:
     ```bash
     docker run -it \
       --env="DISPLAY" \
@@ -71,14 +79,13 @@ Follow these steps to build and run DB-TSDF inside a Docker container:
       --name db_tsdf_container \
       db_tsdf_ros2:humble
     ```
-The Dockerfile sets up the entire environment and downloads the DB-TSDF code automatically.
 
 
  
 
 ## 3. Running the Code
 
-The launch system uses a single main launch file (`db_tsdf_launch.py`) and a config argument to specify which dataset configuration to load.
+The launch system uses a single main launch file (`mapper_launch.py`) and a config argument to specify which dataset configuration to load.
 
 This argument (e.g., `college`) will automatically load the corresponding parameter file (`college.yaml`) and the RViz configuration (`college.rviz`).
 
@@ -86,7 +93,7 @@ First, open a terminal, source your workspace, and run the launch file. The node
 
 To launch using the college configuration:
    ```bash
-   ros2 launch db_tsdf db_tsdf_launch.py config:=college
+   ros2 launch db_tsdf mapper_launch.py config:=college
    ```
 
 
@@ -128,29 +135,27 @@ The system is highly configurable via YAML parameters (e.g., `config/college.yam
 
 ## 5. Output Data and Services
 
-The node provides ROS 2 services to export the reconstructed map:
+The node provides four `std_srvs/srv/Trigger` services to export the reconstructed map. Each one runs in the background and writes its output relative to the directory the node was launched from:
 
-- Mesh (STL)
-   ```bash
-   ros2 service call /save_grid_mesh std_srvs/srv/Trigger "{}"
-   ```
+| Service | Output | Description |
+| :--- | :--- | :--- |
+| `/save_grid_pcd` | `grid_data.pcd` | Occupied-voxel point cloud (PCD) |
+| `/save_grid_ply` | `grid_data.ply` | Occupied-voxel point cloud (PLY) |
+| `/save_grid_csv` | `grid_data_csv/` | Per-cell voxel data (CSV + PLY), one file pair per allocated subgrid cell |
+| `/save_grid_mesh` | `mesh.stl` | Surface mesh extracted with Marching Cubes |
 
-- Voxel Point Cloud
-   ```bash
-   ros2 service call /save_grid_ply std_srvs/srv/Trigger "{}"   # grid_data.ply
-   ros2 service call /save_grid_pcd std_srvs/srv/Trigger "{}"   # grid_data.pcd
-   ```
-
-- Voxel Statistics (CSV)
-   ```bash
-   ros2 service call /save_grid_csv std_srvs/srv/Trigger "{}"
-    ```
+```bash
+ros2 service call /save_grid_pcd  std_srvs/srv/Trigger "{}"
+ros2 service call /save_grid_ply  std_srvs/srv/Trigger "{}"
+ros2 service call /save_grid_csv  std_srvs/srv/Trigger "{}"
+ros2 service call /save_grid_mesh std_srvs/srv/Trigger "{}"
+```
 
  
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 ## Citation
-If you use DB-TSDF in your research, please cite our ICRA 2026 paper:
+If you use DB-TSDF in your research, please cite our paper:
 
 ```bibtex
 @inproceedings{maese2026dbtsdf,

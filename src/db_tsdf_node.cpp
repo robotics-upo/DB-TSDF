@@ -39,17 +39,17 @@ public:
         : Node(node_name)
     {
         // Parameters
-        m_inCloudTopic      = this->declare_parameter<std::string>("in_cloud", "/cloud_raw");
+        m_inCloudTopic      = this->declare_parameter<std::string>("in_cloud", "/os_cloud_node/points");
         m_odomFrameId       = this->declare_parameter<std::string>("odom_frame_id", "odom");
         m_useTf             = this->declare_parameter<bool>("use_tf", true);
-        m_useTfTopic        = this->declare_parameter<bool>("use_tf_topic", false);
-        m_inTfTopic         = this->declare_parameter<std::string>("in_tf_topic", "/tf_stamped");
-        
-        m_tdfGridSizeX_low  = this->declare_parameter<double>("tdfGridSizeX_low", 10.0);
+        m_useTfTopic        = this->declare_parameter<bool>("use_tf_topic", true);
+        m_inTfTopic         = this->declare_parameter<std::string>("in_tf_topic", "/gt_icp/transform");
+
+        m_tdfGridSizeX_low  = this->declare_parameter<double>("tdfGridSizeX_low", -10.0);
         m_tdfGridSizeX_high = this->declare_parameter<double>("tdfGridSizeX_high", 10.0);
-        m_tdfGridSizeY_low  = this->declare_parameter<double>("tdfGridSizeY_low", 10.0);
+        m_tdfGridSizeY_low  = this->declare_parameter<double>("tdfGridSizeY_low", -10.0);
         m_tdfGridSizeY_high = this->declare_parameter<double>("tdfGridSizeY_high", 10.0);
-        m_tdfGridSizeZ_low  = this->declare_parameter<double>("tdfGridSizeZ_low", 10.0);
+        m_tdfGridSizeZ_low  = this->declare_parameter<double>("tdfGridSizeZ_low", -10.0);
         m_tdfGridSizeZ_high = this->declare_parameter<double>("tdfGridSizeZ_high", 10.0);
         m_tdfGridRes        = this->declare_parameter<double>("tdf_grid_res", 0.10);
         m_tdfMaxCells       = this->declare_parameter<double>("tdf_max_cells", 10000.0);
@@ -62,6 +62,7 @@ public:
         m_shadowRadius = this->declare_parameter<int>("shadow_radius", 6);
         m_distanceMode = this->declare_parameter<std::string>("distance_mode", "L1");
         m_kernelSize   = this->declare_parameter<int>("kernel_size", 11);
+        m_verboseInit  = this->declare_parameter<bool>("verbose_init", false);
         
         if (m_kernelSize % 2 == 0) {
             RCLCPP_WARN(this->get_logger(), "Kernel size must be odd! Forcing %d -> %d.", m_kernelSize, m_kernelSize + 1);
@@ -122,7 +123,7 @@ public:
             std::bind(&TSDFNode::saveGridPLY, this, std::placeholders::_1, std::placeholders::_2));
         
         save_service_csv_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_csv",
-            std::bind(&TSDFNode::saveSubgridCSV, this, std::placeholders::_1, std::placeholders::_2));
+            std::bind(&TSDFNode::saveGridCSV, this, std::placeholders::_1, std::placeholders::_2));
 
         save_service_mesh_ = this->create_service<std_srvs::srv::Trigger>( "/save_grid_mesh",
             std::bind(&TSDFNode::saveGridMesh, this, std::placeholders::_1, std::placeholders::_2));
@@ -138,14 +139,15 @@ public:
                     m_binsEl,         
                     m_shadowRadius,   
                     m_distanceMode,
-                    m_tdfMaxCells);
+                    m_tdfMaxCells,
+                    m_verboseInit);
 
-        std::cout << "DB-TSDF is ready to execute! " << std::endl;
-        std::cout << "Grid Created. Size: " 
-                << fabs(m_tdfGridSizeX_high - m_tdfGridSizeX_low) << " x " 
-                << fabs(m_tdfGridSizeY_high - m_tdfGridSizeY_low) << " x " 
-                << fabs(m_tdfGridSizeZ_high - m_tdfGridSizeZ_low) << "." 
-                << std::endl;
+        RCLCPP_INFO(this->get_logger(),
+            "DB-TSDF is ready! Grid: %.1f x %.1f x %.1f m @ %.3f m/voxel",
+            fabs(m_tdfGridSizeX_high - m_tdfGridSizeX_low),
+            fabs(m_tdfGridSizeY_high - m_tdfGridSizeY_low),
+            fabs(m_tdfGridSizeZ_high - m_tdfGridSizeZ_low),
+            m_tdfGridRes);
     }
 
     ~TSDFNode(){
@@ -161,6 +163,7 @@ private:
     double m_minRange, m_maxRange;
     int m_PcDownsampling;
     int m_kernelSize;
+    bool m_verboseInit{false};
     int m_occMinHits;
     int m_binsAz;
     int m_binsEl;
@@ -203,7 +206,7 @@ private:
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void saveGridPLY(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-    void saveSubgridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    void saveGridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void saveGridMesh(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                            std::shared_ptr<std_srvs::srv::Trigger::Response> response);
@@ -352,75 +355,72 @@ Eigen::Matrix4f TSDFNode::getTransformMatrix(const geometry_msgs::msg::Transform
 }
 
 
-// ===================== Export grid as PCD ===================== //
+// Each export runs on a detached thread and reports exactly two lifecycle
+// lines: one when it starts, one when it finishes (or fails).
+
 // ros2 service call /save_grid_pcd std_srvs/srv/Trigger
-void TSDFNode::saveGridPCD(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-    RCLCPP_INFO(this->get_logger(), "Received request to save PCD. Starting in a separate thread...");
-
+void TSDFNode::saveGridPCD(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                           std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    RCLCPP_INFO(this->get_logger(), "Exporting grid to PCD (grid_data.pcd)...");
     std::thread([this]() {
-        RCLCPP_INFO(this->get_logger(), "Generating PCD...");
-        m_grid3d.exportGridToPCD("grid_data.pcd",1); 
-        RCLCPP_INFO(this->get_logger(), "PCD saved successfully.");
+        try {
+            m_grid3d.exportGridToPCD("grid_data.pcd", 1);
+            RCLCPP_INFO(this->get_logger(), "PCD export finished: grid_data.pcd");
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "PCD export failed: %s", e.what());
+        }
     }).detach();
-
     response->success = true;
     response->message = "PCD export started in the background.";
 }
 
-// ===================== Export grid as PLY ===================== //
 // ros2 service call /save_grid_ply std_srvs/srv/Trigger
-void TSDFNode::saveGridPLY(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-    RCLCPP_INFO(this->get_logger(), "Received request to save PLY. Starting in a separate thread...");
-
+void TSDFNode::saveGridPLY(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                           std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    RCLCPP_INFO(this->get_logger(), "Exporting grid to PLY (grid_data.ply)...");
     std::thread([this]() {
-        RCLCPP_INFO(this->get_logger(), "Generating PLY...");
-        m_grid3d.exportGridToPLY("grid_data.ply", 1); 
-        RCLCPP_INFO(this->get_logger(), "PLY saved successfully.");
+        try {
+            m_grid3d.exportGridToPLY("grid_data.ply", 1);
+            RCLCPP_INFO(this->get_logger(), "PLY export finished: grid_data.ply");
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "PLY export failed: %s", e.what());
+        }
     }).detach();
-
     response->success = true;
     response->message = "PLY export started in the background.";
 }
 
-// ===================== Export grid as CSV ===================== //
 // ros2 service call /save_grid_csv std_srvs/srv/Trigger
-void TSDFNode::saveSubgridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
-                                 std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
-    RCLCPP_INFO(this->get_logger(), "Received request to save CSV. Starting in a separate thread...");
-
+void TSDFNode::saveGridCSV(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                           std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    RCLCPP_INFO(this->get_logger(), "Exporting subgrid cells to CSV (grid_data_csv/)...");
     std::thread([this]() {
-        RCLCPP_INFO(this->get_logger(), "Generating CSV...");
-        m_grid3d.exportSubgridToCSV("grid_data.csv", 1); 
-        RCLCPP_INFO(this->get_logger(), "CSV saved successfully.");
+        try {
+            m_grid3d.exportSubgridToCSV("grid_data_csv", 1);
+            RCLCPP_INFO(this->get_logger(), "CSV export finished: grid_data_csv/");
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "CSV export failed: %s", e.what());
+        }
     }).detach();
-
     response->success = true;
     response->message = "CSV export started in the background.";
 }
 
-// ===================== Export grid as STL ===================== //
-// ros2 service call /save_grid_mesh std_srvs/srv/Trigger "{}"
-void TSDFNode::saveGridMesh(const std::shared_ptr<std_srvs::srv::Trigger::Request>, 
-        std::shared_ptr<std_srvs::srv::Trigger::Response> response){
-
-    RCLCPP_INFO(this->get_logger(),"Received request to save Mesh. Starting in background...");
-
-    float iso = 0.00f;
-
-    std::thread([this, iso]() {
+// ros2 service call /save_grid_mesh std_srvs/srv/Trigger
+void TSDFNode::saveGridMesh(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                            std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+    constexpr float iso = 0.0f;
+    RCLCPP_INFO(this->get_logger(), "Exporting grid to mesh (mesh.stl, iso=%.3f)...", iso);
+    std::thread([this]() {
         try {
-            m_grid3d.exportMesh("mesh.stl", iso); 
-            RCLCPP_INFO(this->get_logger(), "Mesh saved successfully to mesh.stl (iso=%.3f)", iso);
-            } 
-        catch (const std::exception &e) {
-            RCLCPP_ERROR(this->get_logger(),"Failed to extract mesh: %s", e.what());
+            m_grid3d.exportMesh("mesh.stl", iso);
+            RCLCPP_INFO(this->get_logger(), "Mesh export finished: mesh.stl");
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(this->get_logger(), "Mesh export failed: %s", e.what());
         }
     }).detach();
-
     response->success = true;
-    response->message = "Mesh export started in background.";
+    response->message = "Mesh export started in the background.";
 }
 
 int main(int argc, char **argv)

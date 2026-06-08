@@ -3,11 +3,7 @@
 
 #include <algorithm>  
 #include <bitset>
-#include <db_tsdf/df3d.hpp>
-#include "nav_msgs/msg/occupancy_grid.hpp"
-#include <boost/thread.hpp>
-#include <boost/chrono.hpp>
-#include "rclcpp/clock.hpp"
+#include <db_tsdf/trilinear_params.hpp>
 #include <db_tsdf/grid_16.hpp>
 
 #include <Eigen/Dense>	
@@ -53,7 +49,8 @@ public:
                int binsEl,
                int shadowRadius,
                std::string distanceMode,
-			   int maxCells = 50000
+			   int maxCells = 50000,
+			   bool verboseInit = false
 			   )
 	{
 		m_maxX = maxX;
@@ -70,8 +67,9 @@ public:
         m_numBins = m_binsAz * m_binsEl;
         m_shadowRadiusMd = shadowRadius;
         m_distanceMode = distanceMode;
-		m_kernelSize = kernelSize; 
+		m_kernelSize = kernelSize;
     	m_kernelRadius = (kernelSize - 1) / 2;
+        m_verboseInit = verboseInit;
 
 		initDirectionalKernels();
 
@@ -320,6 +318,7 @@ protected:
     int m_numBins;
     int m_shadowRadiusMd;
     std::string m_distanceMode;
+    bool m_verboseInit{false};
 
 	// Directional kernels
 	std::vector<DirectionalKernel> m_dirKernels;
@@ -354,11 +353,11 @@ inline void TSDF3D16::initDirectionalKernels()
 {
     if (m_distanceMode == "L2")
     {
-        std::cout << "--- [TSDF3D16] Generating 16-bit L2 (Euclidean) distance LUT..." << std::endl;
+        if (m_verboseInit) std::cout << "--- [TSDF3D16] Generating 16-bit L2 (Euclidean) distance LUT..." << std::endl;
         if (m_r_squared_to_mask16.empty())
         {
             std::set<int> unique_r_squared;
-            for (int z = -m_kernelRadius; z <= m_kernelRadius; ++z) 
+            for (int z = -m_kernelRadius; z <= m_kernelRadius; ++z)
                 for (int y = -m_kernelRadius; y <= m_kernelRadius; ++y)
                     for (int x = -m_kernelRadius; x <= m_kernelRadius; ++x)
                     {
@@ -366,27 +365,30 @@ inline void TSDF3D16::initDirectionalKernels()
                     }
 
             m_r_squared_to_mask16.clear();
-            uint16_t rank = 0; 
-            
-            std::cout << "---Rank -> L2 Distance (Voxels)" << std::endl;
+            uint16_t rank = 0;
+
+            if (m_verboseInit) std::cout << "---Rank -> L2 Distance (Voxels)" << std::endl;
             for (int r2 : unique_r_squared)
             {
                 uint16_t mask;
                 if (rank == 0)      { mask = 0u; }
                 else if (rank < 16) { mask = (0xFFFFu >> (16 - rank)); }
-                else                { mask = 0xFFFFu; } 
+                else                { mask = 0xFFFFu; }
                 m_r_squared_to_mask16[r2] = mask;
-                float l2_dist = std::sqrt(static_cast<float>(r2));
-                std::cout << std::setw(5) << rank << " -> " << l2_dist;
-                if (rank >= 16) { std::cout << " (Truncated to 16 bits)"; }
-                std::cout << std::endl;
+                if (m_verboseInit)
+                {
+                    float l2_dist = std::sqrt(static_cast<float>(r2));
+                    std::cout << std::setw(5) << rank << " -> " << l2_dist;
+                    if (rank >= 16) { std::cout << " (Truncated to 16 bits)"; }
+                    std::cout << std::endl;
+                }
                 rank++;
             }
         }
     }
     else if (m_distanceMode == "L1")
     {
-        std::cout << "--- [TSDF3D16] Using 16-bit L1 (Manhattan) distance masks." << std::endl;
+        if (m_verboseInit) std::cout << "--- [TSDF3D16] Using 16-bit L1 (Manhattan) distance masks." << std::endl;
     }
     else
     {
@@ -444,13 +446,13 @@ inline void TSDF3D16::initDirectionalKernels()
             DK.signs[k]   = (at_hit || inShadow) ? 0 : 1; 
         }
 
-		// --- Debug Kernel Print ---
+		// --- Kernel preview (only with verbose_init) ---
         int az_ray_from_left = 0; // Azimuth bin 0 corresponde a +X
         int el_horizontal = m_binsEl / 2; // Bin de elevación central (horizontal)
 
-        if (el == el_horizontal && az == az_ray_from_left)
+        if (m_verboseInit && el == el_horizontal && az == az_ray_from_left)
         {
-            std::cout << "\n--- DEBUG KERNEL (+X Ray) [Z=0 Slice] ---" << std::endl;
+            std::cout << "\n--- Kernel preview (+X Ray) [Z=0 Slice] ---" << std::endl;
             std::cout << "--- Rank " << m_distanceMode << " | Shadow Radius: " << m_shadowRadiusMd << " ---" << std::endl;
             std::cout << "Format: [Rank][Sign] (#=Occupied/Shadow, .=Free)\n" << std::endl;
             std::cout << " (Y+) \n" << "  ^ \n" << "  | \n";

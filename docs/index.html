@@ -2,867 +2,454 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DB-TSDF · Directional Bitmask TSDF</title>
-
-  <meta name="description"
-    content="DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for efficient volumetric mapping on CPU." />
-  <meta property="og:title" content="DB-TSDF · Directional Bitmask TSDF" />
-  <meta property="og:description"
-    content="Efficient CPU volumetric mapping with constant per-scan time and state-of-the-art reconstruction quality." />
-  <meta property="og:type" content="website" />
-  <meta name="color-scheme" content="light dark" />
-
-  <!-- Google Fonts: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-
-  <!-- Minimalist Favicon (Blue Cube) -->
-  <link rel="icon" type="image/svg+xml"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='6' y='6' width='20' height='20' rx='6' fill='%23003771' /%3E%3C/svg%3E">
-
-  <style>
-    /* ===== Brand palette (Universidad Pablo de Olavide) ===== */
-    :root {
-      --bg: #ffffff;
-      --fg: #141a20;
-      --muted: #6b7280;
-      --brand: #003771;
-      /* blue */
-      --accent: #faba13;
-      /* yellow */
-      --ruler: #faba13;
-      /* light mode: ruler = yellow */
-      --ruler-dark: #77b1ff;
-      /* dark mode: ruler = light blue */
-      --authors-dark: #ffe58a;
-      /* dark mode: lighter yellow for authors */
-      --border: #e9edf2;
-      --shadow: 0 6px 18px rgba(0, 0, 0, .06);
-      --link: var(--brand);
-      --link-hover: var(--accent);
-      --content-max: 1040px;
-    }
-
-    /* Smooth Scrolling */
-    html {
-      scroll-behavior: smooth;
-    }
-
-    /* Auto dark if no manual override */
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme]) {
-        --bg: #0b0f14;
-        --fg: #f1f5f9;
-        --muted: #94a3b8;
-        --border: #1e293b;
-        --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-        --link: #60a5fa;
-        --link-hover: var(--accent);
-        --ruler: var(--ruler-dark);
-        /* titles yellow */
-      }
-
-      :root:not([data-theme]) .authors {
-        color: var(--authors-dark);
-      }
-
-      /* authors lighter yellow */
-    }
-
-    /* Manual overrides force dark */
-    :root[data-theme="dark"] {
-      --bg: #0b0f14;
-      --fg: #f1f5f9;
-      --muted: #94a3b8;
-      --border: #1e293b;
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-      --link: #60a5fa;
-      --link-hover: var(--accent);
-      --ruler: var(--ruler-dark);
-    }
-
-    /* Remove yellow headers in dark mode for minimalism */
-    :root[data-theme="dark"] .hero h1,
-    :root[data-theme="dark"] .section h2 {
-      color: var(--fg);
-    }
-
-    /* Typography Update */
-    body {
-      margin: 0;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--fg);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      height: 100%;
-    }
-
-    /* Transitions */
-    body,
-    .site-header,
-    .btn,
-    .footer,
-    .nav a,
-    .theme-toggle {
-      transition: background-color .3s ease, color .3s ease, border-color .3s ease;
-    }
-
-    /* ===== Header / Nav ===== */
-    .site-header {
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      background: color-mix(in oklab, var(--bg) 85%, transparent);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: saturate(150%) blur(6px);
-    }
-
-    .nav {
-      max-width: var(--content-max);
-      margin: 0 auto;
-      padding: 14px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
-    /* ===== Minimalist Theme Toggle ===== */
-    .theme-toggle {
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--muted);
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .theme-toggle:hover {
-      background: color-mix(in srgb, var(--fg), transparent 95%);
-      color: var(--fg);
-    }
-
-    .theme-toggle svg {
-      width: 20px;
-      height: 20px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .nav a {
-      color: var(--link);
-      text-decoration: none;
-      padding: 8px 10px;
-      border-radius: 10px;
-      text-underline-offset: 3px;
-    }
-
-    .nav a:hover {
-      background: rgba(0, 55, 113, .06);
-      color: var(--link-hover);
-    }
-
-    /* ===== Hero ===== */
-    .hero {
-      max-width: var(--content-max);
-      margin: 80px auto 40px;
-      padding: 0 20px;
-      text-align: center;
-    }
-
-    /* Badge above title */
-    .hero-badge {
-      display: inline-block;
-      padding: 6px 14px;
-      border-radius: 99px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      background: color-mix(in srgb, var(--brand), transparent 94%);
-      color: var(--brand);
-      margin-bottom: 24px;
-      border: 1px solid color-mix(in srgb, var(--brand), transparent 88%);
-    }
-
-    :root[data-theme="dark"] .hero-badge {
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--accent);
-      border-color: rgba(255, 255, 255, 0.1);
-    }
-
-    .hero h1 {
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    /* "Brand" Acronym styling: Ultra-clean, heavy, solid */
-    .hero h1 .brand-name {
-      font-size: clamp(48px, 9vw, 96px);
-      line-height: 1;
-      font-weight: 800;
-      letter-spacing: -0.05em;
-      /* Tight "Display" tracking */
-      color: var(--brand);
-    }
-
-    /* Full Descriptive Title: Light, breathable, refined */
-    .hero h1 .desc {
-      font-size: clamp(20px, 3vw, 32px);
-      line-height: 1.3;
-      font-weight: 400;
-      color: var(--fg);
-      opacity: 0.9;
-      max-width: 800px;
-      letter-spacing: -0.01em;
-    }
-
-    /* Dark mode: Pure white for elegance, no gradients */
-    :root[data-theme="dark"] .hero h1 .brand-name {
-      color: var(--fg);
-    }
-
-    .authors {
-      margin: 32px auto 0;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-      color: var(--muted);
-      font-size: 0.98rem;
-      display: flex;
-      gap: 10px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .authors a {
-      color: var(--link);
-      text-decoration: none;
-    }
-
-    /* Ensure authors go yellow in dark (even as links) */
-    :root[data-theme="dark"] .authors a {
-      color: var(--authors-dark) !important;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme]) .authors a {
-        color: var(--authors-dark) !important;
-      }
-    }
-
-    .authors a:hover {
-      color: var(--link-hover);
-      text-decoration: underline;
-    }
-
-    .hero .lead {
-      color: var(--muted);
-      margin: 10px auto 0;
-      max-width: 820px;
-    }
-
-    /* Quick external links */
-    .quick-links {
-      margin-top: 22px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      border: 1.5px solid var(--accent);
-      color: var(--fg);
-      text-decoration: none;
-      padding: 10px 16px;
-      border-radius: 999px;
-      background: transparent;
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(0, 0, 0, .10);
-      border-color: var(--accent);
-      background: color-mix(in srgb, var(--accent), transparent 92%);
-    }
-
-    /* ===== Sections / Wide dynamic ruler ===== */
-    .section {
-      max-width: var(--content-max);
-      margin: 56px auto;
-    }
-
-    .section header {
-      text-align: center;
-      margin-bottom: 18px;
-    }
-
-    .section h2 {
-      font-size: clamp(22px, 2.5vw, 30px);
-      margin: 0 0 24px;
-      color: var(--brand);
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    /* Minimalist: No ruler */
-    .section h2::after {
-      display: none;
-    }
-
-    .section.in-view h2 {
-      --underline: 100%;
-    }
-
-    /* Clean content */
-    .section .content {
-      margin: 0 auto;
-      max-width: 900px;
-      color: var(--fg);
-      padding: 0 20px;
-    }
-
-    .section p {
-      margin: 0 0 10px 0;
-    }
-
-    /* ===== Auto-advancing gallery with arrows ===== */
-    .gallery {
-      --gap: 12px;
-      max-width: 900px;
-      margin: 14px auto 0;
-      padding: 0 20px;
-    }
-
-    .gallery-viewport {
-      overflow: hidden;
-      position: relative;
-      width: 100%;
-    }
-
-    .gallery-track {
-      display: flex;
-      gap: var(--gap);
-      will-change: transform;
-    }
-
-    .gallery-item {
-      flex: 0 0 calc((100% - 2*var(--gap)) / 3);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-      background: var(--bg);
-      aspect-ratio: 16/9;
-    }
-
-    .gallery-item img {
-      width: 100%;
-      height: 100%;
-      display: block;
-      object-fit: cover;
-    }
-
-    /* Arrows */
-    .gallery-arrow {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      font-size: 20px;
-      color: #fff;
-      border: 1px solid color-mix(in oklab, var(--fg) 40%, transparent);
-      background: color-mix(in oklab, var(--fg) 22%, transparent);
-      cursor: pointer;
-      user-select: none;
-      opacity: .7;
-    }
-
-    .gallery-arrow:hover {
-      opacity: 1;
-    }
-
-    .gallery-arrow.left {
-      left: 6px;
-    }
-
-    .gallery-arrow.right {
-      right: 6px;
-    }
-
-    /* Video embed */
-    .video {
-      position: relative;
-      width: 100%;
-      max-width: 900px;
-      margin: 14px auto 0;
-      aspect-ratio: 16/9;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border);
-    }
-
-    .video iframe {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      border: 0;
-    }
-
-    /* Two-column layout (optional) */
-    .grid {
-      display: grid;
-      gap: 16px;
-      grid-template-columns: repeat(12, 1fr);
-      padding: 0 20px;
-    }
-
-    @media(min-width:860px) {
-      .span-6 {
-        grid-column: span 6;
-      }
-    }
-
-    .block {
-      grid-column: span 12;
-    }
-
-    .block h3 {
-      margin: .2rem 0 .4rem;
-      font-size: 1.05rem;
-      color: var(--brand);
-    }
-
-    /* Code sample + copy */
-    pre {
-      background: color-mix(in oklab, var(--bg) 92%, #000 8%);
-      color: var(--fg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
-      overflow: auto;
-      margin: 8px 20px 0;
-    }
-
-    .copy {
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--link);
-      border-radius: 10px;
-      padding: 6px 10px;
-      cursor: pointer;
-    }
-
-    .copy:hover {
-      background: rgba(250, 186, 19, .12);
-      color: var(--brand);
-    }
-
-    /* Funding logos row */
-    .funders {
-      display: flex;
-      gap: 18px;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      padding: 6px 20px 0;
-    }
-
-    .funders img {
-      max-height: 120px;
-      height: auto;
-      object-fit: contain;
-    }
-
-    :root[data-theme="dark"] .funders img {
-      filter: brightness(0.95) contrast(1.05);
-    }
-
-    /* Footer */
-    .footer {
-      margin-top: 56px;
-      padding: 22px 20px;
-      border-top: 1px solid var(--border);
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .footer a {
-      color: var(--link);
-      text-decoration: none;
-    }
-
-    .footer a:hover {
-      color: var(--link-hover);
-      text-decoration: underline;
-    }
-
-    /* Links */
-    a {
-      color: var(--link);
-    }
-
-    a:hover {
-      color: var(--link-hover);
-    }
-
-    /* Method Note Styling */
-    .method-note {
-      margin-bottom: 24px;
-      font-weight: 700;
-      color: #000;
-    }
-
-    .method-note .label {
-      color: var(--brand);
-    }
-
-    /* Dark mode overrides for method note */
-    :root[data-theme="dark"] .method-note {
-      color: #fff;
-    }
-
-    :root[data-theme="dark"] .method-note .label {
-      color: var(--accent);
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme]) .method-note {
-        color: #fff;
-      }
-
-      :root:not([data-theme]) .method-note .label {
-        color: var(--accent);
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB-TSDF | Directional Bitmask-based TSDF for Efficient Volumetric Mapping</title>
+    <meta name="description"
+        content="DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for efficient, CPU-only volumetric mapping with constant per-scan update cost. Accepted at IEEE ICRA 2026.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-
-  <header class="site-header">
-    <nav class="nav">
-      <!-- Links Left -->
-      <div>
-        <a href="https://robotics.upo.es/" target="_blank" rel="noopener">Service Robotics Lab</a>
-        <a href="https://github.com/robotics-upo" target="_blank" rel="noopener">SRL GitHub</a>
-      </div>
-
-      <!-- Theme toggle Right -->
-      <button class="theme-toggle" id="theme-switch" type="button" aria-label="Toggle theme">
-        <!-- Sun Icon (Default) -->
-        <svg class="sun" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="4"></circle>
-          <path
-            d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41">
-          </path>
-        </svg>
-        <!-- Moon Icon (Hidden by default, swapped by JS) -->
-        <svg class="moon" viewBox="0 0 24 24" style="display:none;">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-        </svg>
-      </button>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="#" class="nav-logo">DB-TSDF</a>
+            <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="nav-links" id="navLinks">
+                <a href="#abstract">Abstract</a>
+                <a href="#method">Method</a>
+                <a href="#results">Results</a>
+                <a href="#citation">Citation</a>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                    <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
     </nav>
-  </header>
 
-  <main>
-    <!-- ===== Hero ===== -->
-    <section class="hero" id="overview">
+    <!-- Hero Section -->
+    <header class="hero hero-animated">
+        <div class="hero-content">
+            <a href="https://2026.ieee-icra.org/" target="_blank" class="hero-badge" style="display:inline-flex;
+                align-items:center; padding:6px 16px; border-radius:999px; font-size:0.8rem; font-weight:600;
+                letter-spacing:0.04em; text-transform:uppercase; background:var(--accent-soft); color:var(--accent);
+                border:1px solid var(--border); text-decoration:none; margin-bottom:20px;">
+                Accepted at IEEE ICRA 2026
+            </a>
+            <h1 class="hero-title">DB-TSDF</h1>
+            <p class="hero-subtitle">Directional Bitmask-based Truncated Signed Distance Fields<br>for Efficient
+                Volumetric Mapping</p>
 
-      <a href="https://2026.ieee-icra.org/" target="_blank" rel="noopener" class="hero-badge"
-        style="text-decoration:none;">Accepted at IEEE ICRA 2026</a>
-
-      <h1>
-        <span class="brand-name">DB-TSDF</span>
-        <span class="desc">Directional Bitmask-based TSDF for Efficient Volumetric Mapping</span>
-      </h1>
-
-      <!-- Authors under title -->
-      <div class="authors">
-        <a href="https://scholar.google.com/citations?user=_csNaiYAAAAJ" target="_blank" rel="noopener">José E.
-          Maese</a>
-        <span>·</span>
-        <a href="https://scholar.google.com/citations?user=BNdMkI8AAAAJ" target="_blank" rel="noopener">Luis Merino</a>
-        <span>·</span>
-        <a href="https://scholar.google.es/citations?user=nb2teTwAAAAJ&hl=es" target="_blank" rel="noopener">Fernando
-          Caballero</a>
-      </div>
-
-      <p class="lead">
-        CPU-only TSDF mapping with constant per-scan time via directional kernels and bitmask distance encoding.
-        Open-source implementation available.
-      </p>
-
-      <!-- External quick links -->
-      <div class="quick-links">
-        <a class="btn" href="https://arxiv.org/abs/2509.20081" target="_blank" rel="noopener">
-          Paper
-        </a>
-        <a class="btn" href="https://www.youtube.com/watch?v=yqLLAqjWyFM" target="_blank" rel="noopener">
-          Video
-        </a>
-        <a class="btn" href="https://github.com/robotics-upo/DB-TSDF" target="_blank" rel="noopener">
-          Code
-        </a>
-      </div>
-    </section>
-
-    <!-- ===== Overview / Example Gallery ===== -->
-    <section class="section" id="overview-gallery">
-      <header>
-        <h2>Overview</h2>
-      </header>
-      <div class="content">
-        <p>DB-TSDF fuses LiDAR point clouds into a dense signed distance field using fixed-size directional kernels. The
-          per-frame update cost is bounded and largely independent of map resolution, enabling high-resolution CPU
-          mapping.</p>
-
-        <div class="gallery">
-          <div class="gallery-viewport" id="g-viewport">
-            <div class="gallery-track" id="g-track">
-              <!-- 3 visible -->
-              <div class="gallery-item"><img src="media/college_tittle.png" alt="Reconstruction overview"></div>
-              <div class="gallery-item"><img src="media/comparativa_ds_1.png" alt="Directional kernel concept"></div>
-              <div class="gallery-item"><img src="media/comparativa_ds_1.png" alt="Mesh close-up"></div>
-              <!-- 3 initially hidden -->
-              <div class="gallery-item"><img src="media/mai_city_detail2.png" alt="Runtime vs resolution"></div>
-              <div class="gallery-item"><img src="media/mai_city_detail3.png" alt="Mai City detail"></div>
+            <div class="hero-meta">
+                <div class="hero-authors">
+                    <a href="https://scholar.google.com/citations?user=_csNaiYAAAAJ" target="_blank">José E. Maese</a>
+                    <a href="https://scholar.google.com/citations?user=BNdMkI8AAAAJ" target="_blank">Luis Merino</a>
+                    <a href="https://scholar.google.es/citations?user=nb2teTwAAAAJ&hl=es" target="_blank">Fernando
+                        Caballero</a>
+                </div>
+                <div class="hero-affiliation">
+                    <a href="https://robotics.upo.es/" target="_blank">Service Robotics Laboratory</a> · Universidad
+                    Pablo de Olavide
+                </div>
             </div>
 
-            <!-- arrows -->
-            <button class="gallery-arrow left" id="g-prev" aria-label="Previous">‹</button>
-            <button class="gallery-arrow right" id="g-next" aria-label="Next">›</button>
-          </div>
+            <div class="hero-buttons">
+                <a href="https://arxiv.org/abs/2509.20081" class="btn btn-primary" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    Paper
+                </a>
+                <a href="https://www.youtube.com/watch?v=yqLLAqjWyFM" class="btn btn-secondary" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    </svg>
+                    Video
+                </a>
+                <a href="https://github.com/robotics-upo/DB-TSDF" class="btn btn-secondary" target="_blank">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                        fill="currentColor">
+                        <path
+                            d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                    </svg>
+                    Code
+                </a>
+            </div>
         </div>
-      </div>
-    </section>
+    </header>
 
-    <!-- ===== Method Sketch ===== -->
-    <section class="section" id="method">
-      <header>
-        <h2>Method</h2>
-      </header>
-      <div class="content">
-        <p class="method-note">
-          <span class="label">New:</span> A 16-bit version is now available, offering improved memory efficiency and
-          performance.
-        </p>
-        <p>Each LiDAR return selects a precomputed, direction-dependent kernel (aligned to azimuth/elevation bins) and
-          applies a bitwise AND update to the voxel’s 32-bit distance mask. A hemispherical shadow region increments a
-          saturating counter to confirm occupancy. The compact 8-byte voxel layout is cache-friendly and parallelizable.
-        </p>
-        <p style="text-align:center;margin-top:8px;">
-          <img src="media/diagram.png" alt="DB-TSDF pipeline"
-            style="max-width:100%;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);" />
-        </p>
+    <!-- Abstract Section with Image Carousel -->
+    <section id="abstract" class="section" data-reveal>
+        <div class="container abstract-layout">
+            <!-- Image Carousel -->
+            <div class="abstract-carousel">
+                <div class="carousel-viewport">
+                    <div class="carousel-track" id="carouselTrack">
+                        <div class="carousel-slide active" data-caption="Newer College Dataset — Reconstruction overview">
+                            <img src="media/college_tittle.png" alt="Newer College Dataset — Reconstruction overview">
+                        </div>
+                        <div class="carousel-slide" data-caption="MaiCity Dataset — Detail view">
+                            <img src="media/mai_city_detail2.png" alt="MaiCity Dataset — Detail view">
+                        </div>
+                        <div class="carousel-slide" data-caption="MaiCity Dataset — Detail view">
+                            <img src="media/mai_city_detail3.png" alt="MaiCity Dataset — Detail view">
+                        </div>
+                    </div>
+                    <button class="carousel-arrow carousel-prev" id="carouselPrev" aria-label="Previous image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <button class="carousel-arrow carousel-next" id="carouselNext" aria-label="Next image">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 6 15 12 9 18"></polyline>
+                        </svg>
+                    </button>
+                    <div class="carousel-dots" id="carouselDots">
+                        <span class="carousel-dot active" data-index="0"></span>
+                        <span class="carousel-dot" data-index="1"></span>
+                        <span class="carousel-dot" data-index="2"></span>
+                    </div>
+                </div>
+                <span class="carousel-caption" id="carouselCaption">Newer College Dataset — Reconstruction overview</span>
+            </div>
 
-      </div>
-    </section>
-
-    <!-- ===== Results (single embedded video) ===== -->
-    <section class="section" id="results">
-      <header>
-        <h2>Results</h2>
-      </header>
-      <div class="content" style="text-align:center">
-        <p>Qualitative results and timings. See the paper for full quantitative comparisons.</p>
-        <div class="video">
-          <iframe src="https://www.youtube.com/embed/yqLLAqjWyFM" title="DB-TSDF Overview"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen></iframe>
+            <!-- Abstract Text -->
+            <div class="abstract-content">
+                <h2 class="section-title">Abstract</h2>
+                <p class="abstract-text">
+                    <strong>DB-TSDF</strong> is a high-efficiency, CPU-only framework for volumetric mapping. A
+                    <strong>directional bitmask-based integration scheme</strong> fuses each LiDAR return into the
+                    voxel grid with a single constant-time bitwise update, giving <strong>predictable per-scan
+                    runtime — independent of grid resolution</strong> — and high-fidelity reconstructions on
+                    platforms with limited GPU resources.
+                </p>
+            </div>
         </div>
-      </div>
     </section>
 
-    <!-- ===== Citation with Copy ===== -->
-    <section class="section" id="citation">
-      <header>
-        <h2>Citation</h2>
-      </header>
-      <div class="content">
-        <p>If you use DB-TSDF in your research, please cite our ICRA 2026 paper:</p>
-        <div class="block-head"
-          style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 20px 0;">
-          <div class="label" style="color:var(--muted);">BibTeX</div>
-          <button class="copy" id="copy-cite">Copy</button>
+    <!-- Method Section -->
+    <section id="method" class="section section-alt" data-reveal>
+        <div class="container">
+            <h2 class="section-title">Method</h2>
+
+            <!-- Core Pipeline -->
+            <div class="formula-section">
+                <div class="formula-visual">
+                    <div class="formula-diagram">
+                        <img src="media/diagram.png" alt="DB-TSDF integration pipeline diagram"
+                            style="border-radius:8px;">
+                    </div>
+                    <div class="formula-explanation">
+                        <h3>Directional Kernels &amp; Bitmask Encoding</h3>
+                        <p>Each LiDAR return selects a precomputed, direction-dependent kernel and updates the
+                            voxel's truncated distance mask with a single <strong>bitwise AND</strong>, while a
+                            hemispherical shadow region confirms occupancy via a saturating counter.</p>
+                        <p>Kernel size and mask width are fixed, so the cost per return is <strong>constant and
+                            independent of grid resolution</strong> — and a compact, cache-friendly voxel layout
+                            keeps high-resolution, multi-threaded CPU mapping fast.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features -->
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="7" stroke-dasharray="2.5 2.5"></circle>
+                            <line x1="6" y1="18" x2="18" y2="6"></line>
+                            <polyline points="12 6 18 6 18 12"></polyline>
+                        </svg>
+                    </div>
+                    <h4>Directional Kernels</h4>
+                    <p>Each LiDAR return selects a precomputed kernel aligned to its azimuth/elevation, modeling beam
+                        geometry and occlusion directly in 3D.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"></path>
+                        </svg>
+                    </div>
+                    <h4>Bitmask Distance Encoding</h4>
+                    <p>Truncated distances are stored as compact bitmasks updated with a single bitwise AND — a 16-bit
+                        layout keeps the per-voxel footprint at just a few bytes.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5">
+                            <circle cx="12" cy="12" r="9"></circle>
+                            <polyline points="12 7 12 12 16 14"></polyline>
+                        </svg>
+                    </div>
+                    <h4>Constant-Time Updates</h4>
+                    <p>The cost of integrating each LiDAR return is fixed and independent of voxel grid resolution,
+                        giving predictable runtime even at high resolutions.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5">
+                            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                            <rect x="9" y="9" width="6" height="6"></rect>
+                            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"></path>
+                        </svg>
+                    </div>
+                    <h4>Multi-threaded CPU Pipeline</h4>
+                    <p>A cache-friendly, compact voxel layout and a multi-threaded C++/ROS&nbsp;2 implementation deliver
+                        high-resolution reconstruction without relying on a GPU.</p>
+                </div>
+            </div>
         </div>
-        <pre id="bibtex">@inproceedings{maese2026dbtsdf,
-  title={DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping},
-  author={Maese, Jose Enrique and Caballero, Fernando and Merino, Luis},
-  booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
-  year={2026}
-}</pre>
-      </div>
     </section>
 
-    <!-- ===== Funding (logos at the very end) ===== -->
-    <section class="section" id="funding">
-      <header>
-        <h2>Funding</h2>
-      </header>
-      <div class="content">
-        <p>This work was supported by PICRA&nbsp;4.0 (PLEC2023-010353) funded by MCIN/AEI and the Spanish Research
-          Agency; and INSERTION (PID2021-127648OB-C31), funded by the "Agencia Estatal de Investigación -
-          Ministerio de Ciencia, Innovación y Universidades" and the "European Union NextGenerationEU/PRTR".</p>
-        <div class="funders" style="margin-top:10px;">
-          <img src="media/fondos_proyectos.png" alt="Logos">
+    <!-- Results Section -->
+    <section id="results" class="section" data-reveal>
+        <div class="container">
+            <h2 class="section-title">Results</h2>
+
+            <p class="results-intro" style="margin-bottom: 2rem;">
+                Benchmarked against state-of-the-art volumetric mapping methods on the Mai City and Newer College
+                datasets, using the SHINE-Mapping evaluation pipeline.
+            </p>
+
+            <div class="metrics-container" data-reveal>
+                <div class="metric-item">
+                    <span class="metric-value">96.6%</span>
+                    <span class="metric-label">Highest F-score on Mai City</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value">~150&nbsp;ms</span>
+                    <span class="metric-label">Constant runtime per LiDAR frame, 0.3–0.05&nbsp;m voxel size</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value">92.4%</span>
+                    <span class="metric-label">Recall on Newer College</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-value">8&nbsp;bytes</span>
+                    <span class="metric-label">Memory footprint per voxel</span>
+                </div>
+            </div>
+
+            <div data-reveal style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+                gap:1.5rem; max-width:680px; margin: 2.5rem auto 2rem; padding: 1.25rem 2rem;
+                background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 16px;">
+                <div style="display:flex; flex-direction:column; align-items:center; line-height:1.1;">
+                    <span style="font-family:'Space Grotesk', sans-serif; font-size:2.4rem; font-weight:700;
+                        color:var(--accent); letter-spacing:-0.02em;">20–40&nbsp;ms</span>
+                    <span style="font-size:0.8rem; color:var(--text-muted);">per LiDAR scan</span>
+                </div>
+                <div style="text-align:left; max-width:380px;">
+                    <span style="display:inline-block; padding:3px 12px; border-radius:999px; font-size:0.7rem;
+                        font-weight:700; letter-spacing:0.06em; text-transform:uppercase; background:var(--accent);
+                        color:#fff; margin-bottom:6px;">New · 16-bit version</span>
+                    <p style="margin:0; color:var(--text-secondary); font-size:0.9rem;">
+                        The figures and tables above reflect the <strong>32-bit</strong> variant evaluated in the
+                        paper (~150&nbsp;ms/frame). The <strong>16-bit version released in this repository</strong>
+                        is a newer, leaner iteration that runs in just <strong>20–40&nbsp;ms per scan</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto; margin-bottom: 1rem;">
+                <table class="results-table" data-reveal>
+                    <caption>Table I — Mai City dataset. Accuracy, Completeness and Chamfer-L1 in cm (lower is
+                        better); Recall and F-score at 10&nbsp;cm in % (higher is better). Best result per column in
+                        <strong>bold</strong>, second-best <u>underlined</u>.</caption>
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>Acc. ↓</th>
+                            <th>Comp. ↓</th>
+                            <th>C-L1 ↓</th>
+                            <th>Recall ↑</th>
+                            <th>F-score ↑</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>VDB-GPDF</td><td>3.8</td><td>8.5</td><td>6.2</td><td>83.3</td><td>88.7</td></tr>
+                        <tr><td>Voxblox</td><td>1.8</td><td>7.1</td><td>4.8</td><td>84.0</td><td>90.9</td></tr>
+                        <tr><td>VDB Fusion</td><td>1.3</td><td>6.9</td><td>4.5</td><td>90.2</td><td>94.1</td></tr>
+                        <tr><td>PUMA</td><td><u>1.2</u></td><td>32.0</td><td>16.9</td><td>78.8</td><td>87.3</td></tr>
+                        <tr><td>SHINE-Mapping</td><td><strong>1.1</strong></td><td><strong>3.2</strong></td><td><strong>2.9</strong></td><td><strong>95.2</strong></td><td><u>95.9</u></td></tr>
+                        <tr><td><strong>DB-TSDF (ours)</strong></td><td>1.7</td><td><u>4.6</u></td><td><u>3.1</u></td><td><u>93.6</u></td><td><strong>96.6</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="overflow-x:auto; margin-bottom: 2rem;">
+                <table class="results-table" data-reveal>
+                    <caption>Table II — Newer College dataset. Accuracy, Completeness and Chamfer-L1 in cm (lower is
+                        better); Recall and F-score at 20&nbsp;cm in % (higher is better). Best result per column in
+                        <strong>bold</strong>, second-best <u>underlined</u>.</caption>
+                    <thead>
+                        <tr>
+                            <th>Method</th>
+                            <th>Acc. ↓</th>
+                            <th>Comp. ↓</th>
+                            <th>C-L1 ↓</th>
+                            <th>Recall ↑</th>
+                            <th>F-score ↑</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>VDB-GPDF</td><td>7.5</td><td>11.9</td><td>9.7</td><td>91.7</td><td>90.4</td></tr>
+                        <tr><td>Voxblox</td><td>9.3</td><td>14.9</td><td>12.1</td><td>87.8</td><td>87.9</td></tr>
+                        <tr><td>VDB Fusion</td><td><u>6.9</u></td><td>12.0</td><td><u>9.4</u></td><td>91.3</td><td><u>92.6</u></td></tr>
+                        <tr><td>PUMA</td><td>7.7</td><td>15.4</td><td>11.5</td><td>89.9</td><td>91.9</td></tr>
+                        <tr><td>SHINE-Mapping</td><td><strong>6.7</strong></td><td><strong>10.0</strong></td><td><strong>8.4</strong></td><td><strong>93.6</strong></td><td><strong>93.7</strong></td></tr>
+                        <tr><td><strong>DB-TSDF (ours)</strong></td><td>9.1</td><td><u>10.7</u></td><td>9.9</td><td><u>92.4</u></td><td>91.3</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="video-embed" data-reveal style="position:relative; width:100%; max-width:900px;
+                margin: 0 auto; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; border: 1px solid var(--border);">
+                <iframe src="https://www.youtube.com/embed/yqLLAqjWyFM" title="DB-TSDF Overview"
+                    style="position:absolute; inset:0; width:100%; height:100%; border:0;"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowfullscreen></iframe>
+            </div>
         </div>
-      </div>
     </section>
-  </main>
 
-  <footer class="footer">
-    © <span id="year"></span> · <a href="https://github.com/robotics-upo/DB-TSDF" target="_blank" rel="noopener">Project
-      Repository</a>
-  </footer>
+    <!-- Citation Section -->
+    <section id="citation" class="section section-alt" data-reveal>
+        <div class="container">
+            <h2 class="section-title">Citation</h2>
 
-  <script>
-    // Year
-    document.getElementById('year').textContent = new Date().getFullYear();
+            <p class="code-intro" style="text-align: left;">
+                If you use DB-TSDF in your research, please cite our paper:
+            </p>
 
-    // Apply saved theme on load
-    (function () {
-      const root = document.documentElement;
-      const key = 'mm-theme';
-      const saved = localStorage.getItem(key);
-      if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
-    })();
+            <div class="code-block citation-block" style="text-align: left;">
+                <div class="code-header">
+                    <span>BibTeX</span>
+                    <button class="copy-btn" title="Copy to clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span class="copy-text">Copy</span>
+                    </button>
+                </div>
+                <pre><code class="cite-content">@inproceedings{maese2026dbtsdf,
+    title={DB-TSDF: Directional Bitmask-based Truncated Signed Distance Fields for Efficient Volumetric Mapping},
+    author={Maese, Jose E. and Caballero, Fernando and Merino, Luis},
+    booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
+    year={2026}
+}</code></pre>
+            </div>
+        </div>
+    </section>
 
-    // Animate section ruler grow/shrink near both top and bottom edges
-    (function () {
-      const SEGURO_TOP = 0.15, SEGURO_BOTTOM = 0.85;
-      const secs = Array.from(document.querySelectorAll('.section'));
-      function update() {
-        const vh = window.innerHeight || 1;
-        secs.forEach(sec => {
-          const h2 = sec.querySelector('h2');
-          if (!h2) return;
-          const r = h2.getBoundingClientRect();
-          const centro = r.top + r.height / 2;
-          const frac = centro / vh;
-          const dentro = frac > SEGURO_TOP && frac < SEGURO_BOTTOM;
-          sec.classList.toggle('in-view', dentro);
-        });
-      }
-      update();
-      window.addEventListener('scroll', update, { passive: true });
-      window.addEventListener('resize', update);
-    })();
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-top">
+                <div class="footer-brand">
+                    <strong>DB-TSDF</strong>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/robotics-upo/DB-TSDF" target="_blank">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                            fill="currentColor">
+                            <path
+                                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        </svg>
+                        GitHub
+                    </a>
+                    <a href="https://arxiv.org/abs/2509.20081" target="_blank">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        Paper
+                    </a>
+                    <a href="https://www.youtube.com/watch?v=yqLLAqjWyFM" target="_blank">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                        </svg>
+                        Video
+                    </a>
+                </div>
+            </div>
 
-    // Theme toggle
-    (function () {
-      const btn = document.getElementById('theme-switch');
-      const root = document.documentElement;
-      const key = 'mm-theme';
-      const sun = btn.querySelector('.sun');
-      const moon = btn.querySelector('.moon');
+            <div class="footer-funding">
+                <span class="footer-funding-label">Funding</span>
+                <ul class="funding-list">
+                    <li><strong>PICRA 4.0</strong> (PLEC2023-010353), funded by the Spanish Ministry of Science and
+                        Innovation and the Spanish Research Agency (MCIN/AEI/10.13039/501100011033).</li>
+                    <li><strong>INSERTION</strong> (PID2021-127648OB-C31), funded by the "Agencia Estatal de
+                        Investigación - Ministerio de Ciencia, Innovación y Universidades" and the "European Union
+                        NextGenerationEU/PRTR".</li>
+                </ul>
+                <img src="media/fondos_proyectos.png" alt="Funding logos">
+            </div>
 
-      function updateIcon(theme) {
-        if (theme === 'dark') {
-          sun.style.display = 'none';
-          moon.style.display = 'block';
-        } else {
-          sun.style.display = 'block';
-          moon.style.display = 'none';
-        }
-      }
+            <div class="footer-bottom">
+                © 2026 Service Robotics Laboratory, Universidad Pablo de Olavide
+            </div>
+        </div>
+    </footer>
 
-      // Init icon
-      updateIcon(root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    <!-- Lightbox overlay -->
+    <div class="lightbox-overlay" id="lightboxOverlay">
+        <button class="lightbox-close" id="lightboxClose" aria-label="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+        <img id="lightboxImg" src="" alt="Enlarged view">
+    </div>
 
-      btn?.addEventListener('click', (e) => {
-        e.preventDefault();
-        const cur = root.getAttribute('data-theme');
-        const next = (cur === 'dark') ? 'light' : 'dark';
-        root.setAttribute('data-theme', next);
-        localStorage.setItem(key, next);
-        updateIcon(next);
-      });
-    })();
-
-    // Auto-advancing gallery with manual arrows
-    (function () {
-      const viewport = document.getElementById('g-viewport');
-      const track = document.getElementById('g-track');
-      const prevBtn = document.getElementById('g-prev');
-      const nextBtn = document.getElementById('g-next');
-      const GAP = 12;
-
-      let step = 0;
-      function recalc() { step = viewport.clientWidth / 3 + GAP; }
-      recalc(); window.addEventListener('resize', recalc);
-
-      function advance(dir = 1) {
-        track.style.transition = 'transform 600ms ease';
-        track.style.transform = `translateX(${dir < 0 ? step : -step}px)`;
-        const onEnd = () => {
-          track.removeEventListener('transitionend', onEnd);
-          if (dir > 0) { track.appendChild(track.firstElementChild); }
-          else { track.insertBefore(track.lastElementChild, track.firstElementChild); }
-          track.style.transition = 'none';
-          track.style.transform = 'translateX(0)';
-          void track.offsetWidth;
-        };
-        track.addEventListener('transitionend', onEnd);
-      }
-
-      let timer = setInterval(() => advance(1), 5000);
-      nextBtn.addEventListener('click', () => { clearInterval(timer); advance(1); timer = setInterval(() => advance(1), 5000); });
-      prevBtn.addEventListener('click', () => { clearInterval(timer); advance(-1); timer = setInterval(() => advance(1), 5000); });
-      viewport.addEventListener('mouseenter', () => clearInterval(timer));
-      viewport.addEventListener('mouseleave', () => { timer = setInterval(() => advance(1), 5000); });
-    })();
-
-    // Copy citation
-    (function () {
-      const btn = document.getElementById('copy-cite');
-      const pre = document.getElementById('bibtex');
-      btn?.addEventListener('click', async () => {
-        const text = pre.textContent;
-        try {
-          await navigator.clipboard.writeText(text);
-          const old = btn.textContent;
-          btn.textContent = 'Copied';
-          setTimeout(() => btn.textContent = old, 1400);
-        } catch (e) {
-          alert('Clipboard copy failed. Please copy manually.');
-        }
-      });
-    })();
-  </script>
-
+    <script src="script.js"></script>
 </body>
 
 </html>

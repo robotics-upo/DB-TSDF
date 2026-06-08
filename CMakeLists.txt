@@ -20,16 +20,13 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common filters)
 find_package(Boost REQUIRED COMPONENTS thread chrono)
-find_package(Ceres REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(std_srvs REQUIRED)
-find_library(ANN_LIB ANN PATHS /usr/lib /usr/local/lib)
 
 find_package(VTK REQUIRED COMPONENTS 
   CommonCore
@@ -47,7 +44,7 @@ ament_target_dependencies(db_tsdf_node
   rclcpp
   tf2            tf2_ros
   tf2_geometry_msgs
-  sensor_msgs    nav_msgs
+  sensor_msgs
   pcl_ros        pcl_conversions
   std_srvs
   Boost

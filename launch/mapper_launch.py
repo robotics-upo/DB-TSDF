@@ -25,7 +25,6 @@ def generate_launch_description():
 
     bag_play = ExecuteProcess(
         cmd=[
-            'gnome-terminal', '--',
             'ros2', 'bag', 'play', bag_path,
             '--clock',
             '--rate', '1.0'

@@ -1,40 +1,46 @@
+# ============================================================================
+#  DB-TSDF — MaiCity Dataset preset
+#  https://www.ipb.uni-bonn.de/data/mai-city-dataset/
+#
+#  Indoor/urban simulated LiDAR sequence (Velodyne-like). Tuned for a
+#  smaller, finer-resolution volume to capture more geometric detail.
+# ============================================================================
 db_tsdf_node:
   ros__parameters:
 
-    # --- Input/Output & TF Parameters ---
-    in_cloud: '/velodyne_points'    # Input PointCloud2 topic
-    odom_frame_id: 'world'                # Odometry frame for TF lookup
-    use_tf: True                         # Whether to use TF transformations
+    # --- Input / Output -----------------------------------------------------
+    in_cloud:        '/velodyne_points'       # Input PointCloud2 topic
+    odom_frame_id:   'world'                  # Odometry frame for TF lookup
+    use_tf:          True                     # Whether to use TF transformations
+    verbose_init:    False                    # True: full parameter dump + kernel preview at startup
 
-    # --- TF Mode Configuration ---
-    # Defines the TF source:
-    #   true:  Legacy Mode (subscribes to 'in_tf_topic').
-    #   false: Generic Mode (uses the global TF2 buffer /tf).
-    use_tf_topic: False
-    in_tf_topic: '/gt_icp/transform'     # Topic name for Legacy Mode subscription
+    # --- TF source -----------------------------------------------------------
+    # use_tf_topic: true  -> Legacy mode, subscribes to 'in_tf_topic'
+    #               false -> Generic mode, uses the global TF2 buffer (/tf)
+    use_tf_topic:    False
+    in_tf_topic:     '/gt_icp/transform'      # Topic used in legacy mode
 
-    # --- Point Cloud Filtering Parameters ---
-    pc_downsampling: 1                   # Downsampling factor for the input cloud
-    min_range: 0.0                       # Minimum sensor range (meters)
-    max_range: 50.0                      # Maximum sensor range (meters)
+    # --- Point cloud filtering -----------------------------------------------
+    pc_downsampling: 1                        # Keep 1 out of every N input points
+    min_range:       0.0                      # Discard points closer than this (m)
+    max_range:       35.0                     # Discard points farther than this (m)
 
-    # --- TSDF Grid Definition ---
-    # Defines the boundaries and resolution of the TSDF volume
-    tdf_grid_res: 0.025                   # Voxel resolution (meters)
-    tdf_max_cells: 100000.0              # Maximum allocated cells
+    # --- TSDF volume ----------------------------------------------------------
+    # World-frame extent and resolution of the mapped region
+    tdf_grid_res:        0.025                # Voxel size (m)
+    tdf_max_cells:       50000.0             # Max. allocated submap cells
 
-    tdfGridSizeX_low: -100.0             # Grid X-axis minimum (meters)
-    tdfGridSizeX_high: 100.0             # Grid X-axis maximum (meters)
-    tdfGridSizeY_low: -100.0             # Grid Y-axis minimum (meters)
-    tdfGridSizeY_high: 100.0             # Grid Y-axis maximum (meters)
-    tdfGridSizeZ_low: -15.0              # Grid Z-axis minimum (meters)
-    tdfGridSizeZ_high: 15.0              # Grid Z-axis maximum (meters)
+    tdfGridSizeX_low:   -100.0                # X-axis lower bound (m)
+    tdfGridSizeX_high:   100.0                # X-axis upper bound (m)
+    tdfGridSizeY_low:   -100.0                # Y-axis lower bound (m)
+    tdfGridSizeY_high:   100.0                # Y-axis upper bound (m)
+    tdfGridSizeZ_low:    -15.0                # Z-axis lower bound (m)
+    tdfGridSizeZ_high:    15.0                # Z-axis upper bound (m)
 
-
-    # --- Integration Kernel Parameters ---
-    kernel_size: 10                       # Integration kernel size. Must be an odd number.
-    occ_min_hits: 1                      # Minimum hits to consider a voxel occupied
-    bins_az: 360                          # Number of azimuthal bins
-    bins_el: 360                          # Number of elevation bins
-    shadow_radius: 5                     # Shadow casting radius (in voxels)
-    distance_mode: "L2"                  # Distance metric (e.g., "L1", "L2")
+    # --- Directional integration kernel ---------------------------------------
+    kernel_size:    5                         # Kernel edge length, in voxels (must be odd)
+    occ_min_hits:   1                         # Hits required before a voxel is marked occupied
+    bins_az:        60                        # Azimuth bins for the directional kernel bank
+    bins_el:        60                        # Elevation bins for the directional kernel bank
+    shadow_radius:  5                         # Shadow-casting radius (in voxels)
+    distance_mode:  "L2"                      # Distance metric used for the bitmask ranks: "L1" or "L2"

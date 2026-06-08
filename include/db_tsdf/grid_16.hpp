@@ -2,10 +2,11 @@
 #define __GRID_16_HPP__
 
 
-#include <algorithm>  
+#include <algorithm>
 #include <bitset>
 #include <stdint.h>
 #include <cmath>
+#include <filesystem>
 
 // PCL
 #include <pcl/point_cloud.h>
@@ -299,9 +300,7 @@ class GRID16
             std::cerr << "[GRID16] Warning: Empty Cloud (no mask==0 found).\n";
             return;
         }
-        std::cout << "[GRID16] Total points (mask==0): " << cloud->size() << "\n";
         pcl::io::savePCDFileBinary(filename, *cloud);
-        std::cout << "[GRID16] PCD exported: " << filename << "\n";
     }
     
     void exportGridToPLY(const std::string& filename, int subsampling_factor)
@@ -347,18 +346,14 @@ class GRID16
             std::cerr << "[GRID16] Warning: Empty Cloud (no mask==0 found).\n";
             return;
         }
-        std::cout << "[GRID16] Total points (mask==0): " << cloud->size() << "\n";
         pcl::io::savePLYFileBinary(filename, *cloud);
-        std::cout << "[GRID16] PLY exported: " << filename << "\n";
     }
 
-    void exportSubgridToCSV(const std::string& filename, int subsampling_factor)
+    void exportSubgridToCSV(const std::string& out_dir, int subsampling_factor)
         {
-        (void)filename;
         (void)subsampling_factor;
 
-        const std::string out_dir = "/home/ros/ros2_ws/tests_results/csv";
-        // std::filesystem::create_directories(out_dir);
+        std::filesystem::create_directories(out_dir);
 
         for (uint32_t cz = 0; cz < _gridSizeZ; ++cz)
         {
@@ -394,7 +389,7 @@ class GRID16
                     // --- CSV ---
                     std::ofstream f_csv(base.str() + ".csv");
                     if (!f_csv.is_open()) {
-                        std::cerr << "[GRID] No se pudo abrir " << (base.str()+".csv") << "\n";
+                        std::cerr << "[GRID16] Could not open " << (base.str()+".csv") << "\n";
                         continue;
                     }
                     f_csv << "x,y,z,d_manhattan,s,hits\n";
@@ -439,7 +434,7 @@ class GRID16
                     // Escribir PLY ASCII solo con vértices
                     std::ofstream f_ply(base.str() + ".ply");
                     if (!f_ply.is_open()) {
-                        std::cerr << "[GRID] No se pudo abrir " << (base.str()+".ply") << "\n";
+                        std::cerr << "[GRID16] Could not open " << (base.str()+".ply") << "\n";
                         continue;
                     }
                     f_ply << "ply\nformat ascii 1.0\n";
@@ -457,9 +452,7 @@ class GRID16
     }
 
     void exportMesh(const std::string& filename, float iso_level, int occ_min_hits){
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Starting mesh extraction...");
-
-        vtkSmartPointer<vtkAppendPolyData> appender = 
+        vtkSmartPointer<vtkAppendPolyData> appender =
             vtkSmartPointer<vtkAppendPolyData>::New();
 
         const float BAND = 0.1f * _cellRes;
@@ -527,7 +520,7 @@ class GRID16
             }
         } 
 
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Joining cell meshes...");
+        std::cout << "[GRID16] Joining cell meshes...\n";
         appender->Update();
 
         auto ext_pos = filename.find_last_of('.');
@@ -553,8 +546,6 @@ class GRID16
         else {
             throw std::invalid_argument("Unsupported file extension: " + ext);
         }
-        
-        RCLCPP_INFO(rclcpp::get_logger("GRID16_Mesh"), "Mesh saved to %s", filename.c_str());
     }
 
 

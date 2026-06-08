@@ -1,2 +1,13 @@
 utils/
 tests/
+
+# colcon workspace artifacts (in case the package is built in-place)
+build/
+install/
+log/
+
+# map export outputs (written to the CWD by the save_grid_* services)
+grid_data.pcd
+grid_data.ply
+grid_data_csv/
+mesh.stl
