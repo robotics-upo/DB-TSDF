@@ -27,7 +27,7 @@ db_tsdf_node:
 
     # --- TSDF volume ----------------------------------------------------------
     # World-frame extent and resolution of the mapped region
-    tdf_grid_res:        0.025                # Voxel size (m)
+    tdf_grid_res:        0.05                # Voxel size (m)
     tdf_max_cells:       50000.0             # Max. allocated submap cells
 
     tdfGridSizeX_low:   -100.0                # X-axis lower bound (m)

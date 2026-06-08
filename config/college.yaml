@@ -27,7 +27,7 @@ db_tsdf_node:
 
     # --- TSDF volume ----------------------------------------------------------
     # World-frame extent and resolution of the mapped region
-    tdf_grid_res:        0.025                # Voxel size (m)
+    tdf_grid_res:        0.05                # Voxel size (m)
     tdf_max_cells:       75000.0              # Max. allocated submap cells
 
     tdfGridSizeX_low:   -100.0                # X-axis lower bound (m)
@@ -39,7 +39,7 @@ db_tsdf_node:
 
     # --- Directional integration kernel ---------------------------------------
     kernel_size:    7                         # Kernel edge length, in voxels (must be odd)
-    occ_min_hits:   25                        # Hits required before a voxel is marked occupied
+    occ_min_hits:   50                        # Hits required before a voxel is marked occupied
     bins_az:        60                        # Azimuth bins for the directional kernel bank
     bins_el:        60                        # Elevation bins for the directional kernel bank
     shadow_radius:  5                         # Shadow-casting radius (in voxels)
